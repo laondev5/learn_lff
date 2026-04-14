@@ -1,3 +1,4 @@
+import "server-only"
 import mongoose, { Document, Model, Schema, Types } from "mongoose"
 import { IQuestion, QuestionType } from "./Test.model"
 

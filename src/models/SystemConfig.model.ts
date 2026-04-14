@@ -1,3 +1,4 @@
+import "server-only"
 import mongoose, { Document, Model, Schema } from "mongoose"
 
 export interface ISystemConfig extends Document {

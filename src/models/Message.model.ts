@@ -1,3 +1,4 @@
+import "server-only"
 import mongoose, { Document, Model, Schema, Types } from "mongoose"
 
 export interface IMessage extends Document {

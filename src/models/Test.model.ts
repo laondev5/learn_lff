@@ -1,3 +1,4 @@
+import "server-only"
 import mongoose, { Document, Model, Schema, Types } from "mongoose"
 
 export type QuestionType = "mcq" | "true_false" | "short_answer"
