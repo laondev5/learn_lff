@@ -8,31 +8,34 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { updateOrgName, uploadSystemImage } from "@/actions/system.actions"
+import { updateSystemSettings, uploadSystemImage } from "@/actions/system.actions"
 
 interface SystemSettingsFormProps {
   organizationName: string
   logoUrl: string | null
   signatureUrl: string | null
+  stuckDurationHours: number
 }
 
-export function SystemSettingsForm({ organizationName, logoUrl, signatureUrl }: SystemSettingsFormProps) {
+export function SystemSettingsForm({ organizationName, logoUrl, signatureUrl, stuckDurationHours }: SystemSettingsFormProps) {
   const [orgName, setOrgName] = useState(organizationName)
-  const [savingName, setSavingName] = useState(false)
+  const [stuckDuration, setStuckDuration] = useState(stuckDurationHours)
+  const [savingSettings, setSavingSettings] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingSignature, setUploadingSignature] = useState(false)
   const [currentLogoUrl, setCurrentLogoUrl] = useState(logoUrl)
   const [currentSignatureUrl, setCurrentSignatureUrl] = useState(signatureUrl)
 
-  async function handleOrgNameSave(e: React.FormEvent) {
+  async function handleSettingsSave(e: React.FormEvent) {
     e.preventDefault()
-    setSavingName(true)
+    setSavingSettings(true)
     const fd = new FormData()
     fd.set("organizationName", orgName)
-    const result = await updateOrgName(fd)
+    fd.set("stuckDurationHours", stuckDuration.toString())
+    const result = await updateSystemSettings(fd)
     if (result.error) toast.error(result.error)
-    else toast.success("Organization name updated")
-    setSavingName(false)
+    else toast.success("System settings updated")
+    setSavingSettings(false)
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: "logo" | "signature") {
@@ -62,23 +65,46 @@ export function SystemSettingsForm({ organizationName, logoUrl, signatureUrl }: 
 
   return (
     <div className="space-y-6">
-      {/* Organization Name */}
+      {/* Organization Settings */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Organization Name</CardTitle>
-          <CardDescription>Appears on certificates and throughout the platform</CardDescription>
+          <CardTitle className="text-base">General Settings</CardTitle>
+          <CardDescription>Configure basic platform details and automation</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleOrgNameSave} className="flex gap-3">
-            <Input
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Organization name"
-              className="max-w-sm"
-              disabled={savingName}
-            />
-            <Button type="submit" disabled={savingName}>
-              {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          <form onSubmit={handleSettingsSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="orgName">Organization Name</Label>
+              <Input
+                id="orgName"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Organization name"
+                className="max-w-sm"
+                disabled={savingSettings}
+              />
+              <p className="text-xs text-muted-foreground">Appears on certificates and throughout the platform</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stuckDuration">Accountability Alert Duration (Hours)</Label>
+              <Input
+                id="stuckDuration"
+                type="number"
+                min="1"
+                value={stuckDuration}
+                onChange={(e) => setStuckDuration(parseInt(e.target.value) || 72)}
+                className="max-w-[120px]"
+                disabled={savingSettings}
+              />
+              <p className="text-xs text-muted-foreground">
+                Notifications will be sent to accountability partners if a student is inactive for more than this period.
+              </p>
+            </div>
+
+            <Button type="submit" disabled={savingSettings}>
+              {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Settings
             </Button>
           </form>
         </CardContent>

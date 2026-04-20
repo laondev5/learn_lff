@@ -1,5 +1,3 @@
-"use client"
-
 import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -95,7 +93,7 @@ const Button = React.forwardRef<HTMLButtonElement | HTMLAnchorElement, MergedPro
       <ButtonPrimitive
         ref={ref as React.Ref<HTMLButtonElement>}
         data-slot="button"
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size }), className)}
         {...props}
       >
         {children}

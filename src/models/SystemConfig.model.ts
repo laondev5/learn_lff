@@ -8,6 +8,7 @@ export interface ISystemConfig extends Document {
   signatureUrl?: string
   signaturePublicId?: string
   primaryColor?: string
+  stuckDurationHours: number
   updatedAt: Date
 }
 
@@ -19,6 +20,7 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
     signatureUrl: { type: String },
     signaturePublicId: { type: String },
     primaryColor: { type: String, default: "#2563eb" },
+    stuckDurationHours: { type: Number, default: 72 },
   },
   { timestamps: true }
 )

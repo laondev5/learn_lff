@@ -32,6 +32,9 @@ const schema = z.object({
   cohort: z.string().optional(),
   church: z.string().optional(),
   district: z.string().optional(),
+  partnerName: z.string().optional(),
+  partnerEmail: z.string().optional(),
+  partnerLocation: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -64,6 +67,9 @@ export function CreateUserDialog({ children }: CreateUserDialogProps) {
     if (data.cohort) formData.set("cohort", data.cohort)
     if (data.church) formData.set("church", data.church)
     if (data.district) formData.set("district", data.district)
+    if (data.partnerName) formData.set("partnerName", data.partnerName)
+    if (data.partnerEmail) formData.set("partnerEmail", data.partnerEmail)
+    if (data.partnerLocation) formData.set("partnerLocation", data.partnerLocation)
 
     const result = await createUser(formData)
 
@@ -120,14 +126,50 @@ export function CreateUserDialog({ children }: CreateUserDialogProps) {
           </div>
 
           {role === "student" && (
-            <div className="space-y-2">
-              <Label htmlFor="cohort">Cohort (e.g. April 2026)</Label>
-              <Input
-                id="cohort"
-                placeholder="April 2026"
-                disabled={isLoading}
-                {...register("cohort")}
-              />
+            <div className="space-y-4 pt-2 border-t">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Accountability Partner</Label>
+                <div className="grid gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="partnerName" className="text-xs">Partner Name</Label>
+                    <Input
+                      id="partnerName"
+                      placeholder="Jane Doe"
+                      disabled={isLoading}
+                      {...register("partnerName")}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="partnerEmail" className="text-xs">Partner Email</Label>
+                    <Input
+                      id="partnerEmail"
+                      type="email"
+                      placeholder="jane@example.com"
+                      disabled={isLoading}
+                      {...register("partnerEmail")}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="partnerLocation" className="text-xs">Partner Location</Label>
+                    <Input
+                      id="partnerLocation"
+                      placeholder="Lagos, Nigeria"
+                      disabled={isLoading}
+                      {...register("partnerLocation")}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cohort">Cohort (e.g. April 2026)</Label>
+                <Input
+                  id="cohort"
+                  placeholder="April 2026"
+                  disabled={isLoading}
+                  {...register("cohort")}
+                />
+              </div>
             </div>
           )}
 

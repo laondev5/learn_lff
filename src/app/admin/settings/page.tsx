@@ -16,6 +16,7 @@ export default async function SettingsPage() {
         organizationName={config.organizationName}
         logoUrl={config.logoUrl}
         signatureUrl={config.signatureUrl}
+        stuckDurationHours={config.stuckDurationHours ?? 72}
       />
     </div>
   )

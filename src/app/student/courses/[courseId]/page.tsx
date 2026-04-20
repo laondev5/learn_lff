@@ -3,10 +3,14 @@ import { getCourseForStudent } from "@/actions/student.actions"
 import Link from "next/link"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, Circle, Lock, Award, ChevronRight, PlayCircle, BookOpen, Clock } from "lucide-react"
+import { CheckCircle2, Circle, Lock, Award, ChevronRight, PlayCircle, BookOpen, Clock, MessageCircle } from "lucide-react"
+import { CourseQAClient } from "@/components/shared/CourseQAClient"
+import { getCourseQuestions } from "@/actions/qa.actions"
+import { auth } from "@/auth"
+import { cn } from "@/lib/utils"
 
 interface Props {
   params: Promise<{ courseId: string }>
@@ -14,7 +18,11 @@ interface Props {
 
 export default async function StudentCoursePage({ params }: Props) {
   const { courseId } = await params
-  const course = await getCourseForStudent(courseId)
+  const session = await auth()
+  const [course, questions] = await Promise.all([
+    getCourseForStudent(courseId),
+    getCourseQuestions(courseId),
+  ])
 
   if (!course || "error" in course) notFound()
 
@@ -98,12 +106,16 @@ export default async function StudentCoursePage({ params }: Props) {
 
             <div className="flex items-center gap-3 pt-2">
               {primaryActionUrl ? (
-                <Button asChild size="lg" className="rounded-full shadow-md font-semibold px-8 hover:scale-[1.02] transition-transform">
-                  <Link href={primaryActionUrl}>
-                    <ActionIcon className="mr-2 h-5 w-5" />
-                    {primaryActionLabel}
-                  </Link>
-                </Button>
+                <Link 
+                  href={primaryActionUrl}
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "rounded-full shadow-md font-semibold px-8 hover:scale-[1.02] transition-transform"
+                  )}
+                >
+                  <ActionIcon className="mr-2 h-5 w-5" />
+                  {primaryActionLabel}
+                </Link>
               ) : (
                 <Button disabled size="lg" className="rounded-full shadow-md font-semibold px-8">
                   <ActionIcon className="mr-2 h-5 w-5" />
@@ -196,12 +208,16 @@ export default async function StudentCoursePage({ params }: Props) {
                               </span>
                               
                               {!locked && (
-                                <Button asChild variant={lesson.isCompleted ? "outline" : "secondary"} size="sm" className={lesson.isCompleted ? "opacity-70 hover:opacity-100" : "font-semibold shadow-sm"}>
-                                  <Link href={`/student/courses/${courseId}/lessons/${lesson.id}`}>
-                                    {lesson.isCompleted ? "Review" : "Start lesson"}
-                                    <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                                  </Link>
-                                </Button>
+                                <Link 
+                                  href={`/student/courses/${courseId}/lessons/${lesson.id}`}
+                                  className={cn(
+                                    buttonVariants({ variant: lesson.isCompleted ? "outline" : "secondary", size: "sm" }),
+                                    lesson.isCompleted ? "opacity-70 hover:opacity-100" : "font-semibold shadow-sm"
+                                  )}
+                                >
+                                  {lesson.isCompleted ? "Review" : "Start lesson"}
+                                  <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                                </Link>
                               )}
                             </div>
                           )
@@ -257,6 +273,16 @@ export default async function StudentCoursePage({ params }: Props) {
           </Card>
         )}
       </div>
+
+      <hr className="my-10" />
+
+      <CourseQAClient 
+        courseId={courseId}
+        initialQuestions={questions}
+        currentUserId={session!.user.id}
+        userRole={session!.user.role}
+        isTeacherOfCourse={false}
+      />
 
     </div>
   )

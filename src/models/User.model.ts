@@ -20,6 +20,14 @@ export interface IUser extends Document {
   city?: string
   ordination?: Ordination
   avatarUrl?: string
+  googleAccessToken?: string
+  googleRefreshToken?: string
+  googleTokenExpiry?: number
+  accountabilityPartner?: {
+    name: string
+    email: string
+    location: string
+  }
   isActive: boolean
   mustChangePassword: boolean
   createdAt: Date
@@ -40,6 +48,14 @@ const UserSchema = new Schema<IUser>(
     city: { type: String, trim: true },
     ordination: { type: String, enum: ORDINATION_OPTIONS },
     avatarUrl: { type: String },
+    googleAccessToken: { type: String },
+    googleRefreshToken: { type: String },
+    googleTokenExpiry: { type: Number },
+    accountabilityPartner: {
+      name: { type: String, trim: true },
+      email: { type: String, lowercase: true, trim: true },
+      location: { type: String, trim: true },
+    },
     isActive: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: true },
   },

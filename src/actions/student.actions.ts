@@ -250,6 +250,7 @@ export async function markLessonViewed(lessonId: string) {
   const hasTest = await Test.exists({ lesson: lessonId, isPublished: true })
   if (!hasTest && !alreadyDone) {
     progress.completedLessons.push(new Types.ObjectId(lessonId))
+    progress.updatedAt = new Date() // Force updatedAt change
     await progress.save()
     await checkModuleCompletion(progress._id.toString(), lesson.module.toString(), lesson.course.toString())
   }
@@ -319,6 +320,7 @@ export async function submitTest(testId: string, answers: Record<string, string>
     if (!lessonAlreadyComplete) {
       progress.completedLessons.push(new Types.ObjectId(lessonId))
     }
+    progress.updatedAt = new Date() // Force updatedAt change
     await progress.save()
     await checkModuleCompletion(
       progress._id.toString(),

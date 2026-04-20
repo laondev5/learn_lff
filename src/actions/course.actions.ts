@@ -96,6 +96,15 @@ export async function deleteCourse(courseId: string) {
   return { success: true }
 }
 
+export async function getTeacherCourses() {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return []
+
+  await connectDB()
+  const courses = await Course.find({ teacher: session.user.id }).select("title _id").lean()
+  return JSON.parse(JSON.stringify(courses))
+}
+
 
 
 

@@ -6,7 +6,7 @@ import { connectDB } from "@/lib/mongoose"
 import User from "@/models/User.model"
 import ChatForum from "@/models/ChatForum.model"
 import { ORDINATION_OPTIONS } from "@/lib/constants"
-import { sendEmail, credentialsEmailHtml } from "@/lib/email"
+import { sendEmail, credentialsEmailHtml, accountabilityPartnerWelcomeEmailHtml } from "@/lib/email"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 
@@ -17,6 +17,9 @@ const createUserSchema = z.object({
   cohort: z.string().optional(),
   church: z.string().optional(),
   district: z.string().optional(),
+  partnerName: z.string().optional(),
+  partnerEmail: z.string().optional(),
+  partnerLocation: z.string().optional(),
 })
 
 const updateProfileSchema = z.object({
@@ -50,7 +53,17 @@ export async function createUser(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { name, email, role, cohort, church, district } = parsed.data
+  const {
+    name,
+    email,
+    role,
+    cohort,
+    church,
+    district,
+    partnerName,
+    partnerEmail,
+    partnerLocation,
+  } = parsed.data
 
   await connectDB()
 
@@ -68,6 +81,14 @@ export async function createUser(formData: FormData) {
     cohort: cohort || undefined,
     church: church || undefined,
     district: district || undefined,
+    accountabilityPartner:
+      role === "student" && partnerName && partnerEmail && partnerLocation
+        ? {
+            name: partnerName,
+            email: partnerEmail,
+            location: partnerLocation,
+          }
+        : undefined,
     mustChangePassword: true,
   })
 
@@ -86,12 +107,23 @@ export async function createUser(formData: FormData) {
   }
 
   try {
+    // 1. Send student credentials
     await sendEmail({
       to: email,
       subject: "Welcome to LFF Learning Management System",
       html: credentialsEmailHtml(name, email, tempPassword),
     })
-  } catch {
+
+    // 2. Send welcome email to accountability partner if applicable
+    if (role === "student" && partnerEmail && partnerName) {
+      await sendEmail({
+        to: partnerEmail,
+        subject: `Accountability Partner for ${name}`,
+        html: accountabilityPartnerWelcomeEmailHtml(partnerName, name),
+      })
+    }
+  } catch (error) {
+    console.error("Email sending failed:", error)
     // User created but email failed — return partial success
     return { success: true, emailFailed: true }
   }

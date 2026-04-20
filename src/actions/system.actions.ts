@@ -16,20 +16,27 @@ export async function getSystemConfig() {
     organizationName: config.organizationName,
     logoUrl: config.logoUrl ?? null,
     signatureUrl: config.signatureUrl ?? null,
+    stuckDurationHours: config.stuckDurationHours ?? 72,
   }
 }
 
-export async function updateOrgName(formData: FormData) {
+export async function updateSystemSettings(formData: FormData) {
   const session = await auth()
   if (!session?.user || session.user.role !== "admin") return { error: "Unauthorized" }
 
   const name = formData.get("organizationName")?.toString().trim()
-  if (!name || name.length < 2) return { error: "Name must be at least 2 characters" }
+  const stuckDuration = Number(formData.get("stuckDurationHours"))
+
+  if (name && name.length < 2) return { error: "Name must be at least 2 characters" }
+  if (isNaN(stuckDuration) || stuckDuration < 1) return { error: "Invalid duration" }
 
   await connectDB()
   await SystemConfig.findOneAndUpdate(
     {},
-    { organizationName: name },
+    {
+      ...(name ? { organizationName: name } : {}),
+      stuckDurationHours: stuckDuration,
+    },
     { upsert: true, new: true }
   )
 

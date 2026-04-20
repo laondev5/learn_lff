@@ -26,6 +26,7 @@ import {
   createModule, toggleModulePublished, deleteModule,
 } from "@/actions/course.actions"
 import { Separator } from "@/components/ui/separator"
+import { CourseQAClient, Question } from "@/components/shared/CourseQAClient"
 
 interface Lesson {
   id: string
@@ -52,7 +53,15 @@ interface Course {
   modules: Module[]
 }
 
-export function CourseDetailClient({ course }: { course: Course }) {
+export function CourseDetailClient({ 
+   course, 
+   questions, 
+   currentUserId 
+ }: { 
+   course: Course; 
+   questions: Question[]; 
+   currentUserId: string 
+ }) {
   const router = useRouter()
   const [toggling, setToggling] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -308,6 +317,16 @@ export function CourseDetailClient({ course }: { course: Course }) {
           ))}
         </div>
       )}
+
+      <Separator className="my-10" />
+
+      <CourseQAClient 
+        courseId={course.id}
+        initialQuestions={questions}
+        currentUserId={currentUserId}
+        userRole="teacher"
+        isTeacherOfCourse={true}
+      />
     </div>
   )
 }
