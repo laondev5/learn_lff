@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +27,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export function CreateCourseDialog({ children }: { children: React.ReactNode }) {
+export function CreateCourseDialog({ children }: { children: React.ReactElement }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -54,7 +55,7 @@ export function CreateCourseDialog({ children }: { children: React.ReactNode }) 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {React.cloneElement(children as React.ReactElement<{ onClick?: React.MouseEventHandler }>, { onClick: () => setOpen(true) })}
+      <DialogTrigger render={children} />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create New Course</DialogTitle>

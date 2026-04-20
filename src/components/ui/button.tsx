@@ -41,9 +41,6 @@ const buttonVariants = cva(
   }
 )
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRef = any
-
 type MergedProps = Omit<React.ComponentPropsWithoutRef<typeof ButtonPrimitive>, "asChild"> & 
   Omit<React.HTMLAttributes<HTMLButtonElement>, "asChild"> & 
   VariantProps<typeof buttonVariants> & {
@@ -55,32 +52,9 @@ const Button = React.forwardRef<HTMLButtonElement | HTMLAnchorElement, MergedPro
   ({ className, variant = "default", size = "default", asChild = false, children, ...props }, ref) => {
     if (asChild && React.isValidElement(children)) {
       const child = children as React.ReactElement<Record<string, unknown>>
-      const childProps = child.props as Record<string, unknown>
-      const childRef = ('ref' in childProps ? childProps.ref : (child as AnyRef).ref) as React.Ref<unknown>
-
-      // Use useCallback to guarantee to the React Compiler that this function is not executed during render
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const mergedRef = React.useCallback(
-        (node: HTMLButtonElement | HTMLAnchorElement | null) => {
-          if (typeof ref === "function") {
-            ref(node)
-          } else if (ref && typeof ref === "object") {
-            Reflect.set(ref, "current", node)
-          }
-
-          if (typeof childRef === "function") {
-            childRef(node)
-          } else if (childRef && typeof childRef === "object") {
-            Reflect.set(childRef, "current", node)
-          }
-        },
-        [ref, childRef]
-      )
 
       return React.cloneElement(child, {
         ...props,
-        // eslint-disable-next-line
-        ref: mergedRef,
         className: cn(
           buttonVariants({ variant, size }),
           (child.props as { className?: string }).className,

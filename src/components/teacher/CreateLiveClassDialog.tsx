@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,7 +39,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 interface CreateLiveClassDialogProps {
-  children: React.ReactNode
+  children: React.ReactElement
 }
 
 export function CreateLiveClassDialog({ children }: CreateLiveClassDialogProps) {
@@ -83,7 +84,7 @@ export function CreateLiveClassDialog({ children }: CreateLiveClassDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {React.cloneElement(children as React.ReactElement<{ onClick?: React.MouseEventHandler }>, { onClick: () => setOpen(true) })}
+      <DialogTrigger render={children} />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Schedule Live Class</DialogTitle>
