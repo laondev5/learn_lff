@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ChevronRight, CheckCircle2, Loader2, Video } from "lucide-react"
+import { ChevronRight, CheckCircle2, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,6 +51,7 @@ interface LessonData {
   title: string
   lessonType: string
   content: string
+  studentNotes?: string
   videoUrl: string | null
   youtubeVideoId: string | null
   videoCues: VideoCue[]
@@ -167,15 +168,17 @@ export function LessonViewerClient({
         />
       )}
 
-      {/* Fallback: external video link */}
+      {/* Fallback: direct video source without download option */}
       {isVideoLesson && !isCloudinaryVideo && !youtubeVideoId && lesson.videoUrl && (
-        <div className="rounded-md overflow-hidden border">
-          <div className="flex items-center gap-2 p-4 bg-muted/30">
-            <Video className="h-4 w-4" />
-            <a href={lesson.videoUrl} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline text-primary">
-              Watch Video
-            </a>
-          </div>
+        <div className="aspect-video rounded-md overflow-hidden border bg-black">
+          <video
+            src={lesson.videoUrl}
+            controls
+            className="w-full h-full"
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
+            onContextMenu={(e) => e.preventDefault()}
+          />
         </div>
       )}
 
@@ -184,6 +187,17 @@ export function LessonViewerClient({
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{lesson.content}</pre>
         </div>
+      )}
+
+      {lesson.studentNotes && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Teacher Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{lesson.studentNotes}</pre>
+          </CardContent>
+        </Card>
       )}
 
       <Separator />

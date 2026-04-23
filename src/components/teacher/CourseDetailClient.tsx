@@ -7,7 +7,7 @@ import Image from "next/image"
 import { toast } from "sonner"
 import {
   BookOpen, ChevronRight, Eye, EyeOff, ImageIcon, Loader2,
-  MoreHorizontal, Megaphone, Plus, Trash2, Pencil
+  MoreHorizontal, Megaphone, Plus, Trash2, Pencil, Users, Settings
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   toggleCoursePublished, deleteCourse, updateCourse,
   createModule, toggleModulePublished, deleteModule,
@@ -49,6 +50,8 @@ interface Course {
   title: string
   description: string
   coverImageUrl?: string | null
+  isPaid: boolean
+  price: number
   isPublished: boolean
   modules: Module[]
 }
@@ -68,6 +71,8 @@ export function CourseDetailClient({
   const [editOpen, setEditOpen] = useState(false)
   const [editTitle, setEditTitle] = useState(course.title)
   const [editDesc, setEditDesc] = useState(course.description)
+  const [editIsPaid, setEditIsPaid] = useState(course.isPaid)
+  const [editPrice, setEditPrice] = useState(String(course.price ?? 0))
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [uploadingCover, setUploadingCover] = useState(false)
   const [coverPreview, setCoverPreview] = useState<string | null>(course.coverImageUrl ?? null)
@@ -120,6 +125,8 @@ export function CourseDetailClient({
     const fd = new FormData()
     fd.set("title", editTitle)
     fd.set("description", editDesc)
+    fd.set("isPaid", String(editIsPaid))
+    fd.set("price", editIsPaid ? editPrice : "0")
     if (newCoverUrl) fd.set("coverImageUrl", newCoverUrl)
     const result = await updateCourse(course.id, fd)
     if (result.error) toast.error(result.error)
@@ -165,6 +172,9 @@ export function CourseDetailClient({
             <Badge variant={course.isPublished ? "default" : "secondary"}>
               {course.isPublished ? "Published" : "Draft"}
             </Badge>
+            <Badge variant={course.isPaid ? "default" : "outline"}>
+              {course.isPaid ? `Paid - NGN ${course.price.toLocaleString()}` : "Free"}
+            </Badge>
           </div>
           <p className="text-sm text-muted-foreground">{course.description}</p>
         </div>
@@ -186,9 +196,7 @@ export function CourseDetailClient({
           </Button>
 
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogTrigger render={<Button variant="outline" size="sm" />}>
-              <Pencil className="h-4 w-4" />
-            </DialogTrigger>
+            <DialogTrigger render={<Button variant="outline" size="sm"><Pencil className="h-4 w-4" /></Button>} />
             <DialogContent>
               <DialogHeader><DialogTitle>Edit Course</DialogTitle></DialogHeader>
               <form onSubmit={handleEdit} className="space-y-4 mt-2">
@@ -199,6 +207,31 @@ export function CourseDetailClient({
                 <div className="space-y-2">
                   <Label>Description</Label>
                   <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={3} disabled={saving} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Pricing</Label>
+                    <Select value={editIsPaid ? "paid" : "free"} onValueChange={(v) => setEditIsPaid(v === "paid")} disabled={saving}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Price (NGN)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="100"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      disabled={saving || !editIsPaid}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -259,16 +292,25 @@ export function CourseDetailClient({
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
+            <Link href={`/teacher/courses/${course.id}/monitoring`}>
+              <Users className="mr-2 h-4 w-4" />
+              Monitoring & Grades
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href={`/teacher/courses/${course.id}/exam`}>
               <BookOpen className="mr-2 h-4 w-4" />
               Final Exam
             </Link>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/teacher/courses/${course.id}/settings`}>
+              <Settings className="mr-2 h-4 w-4" />
+              Course Settings
+            </Link>
+          </Button>
           <Dialog open={addModuleOpen} onOpenChange={setAddModuleOpen}>
-            <DialogTrigger render={<Button size="sm" />}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Module
-            </DialogTrigger>
+            <DialogTrigger render={<Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Module</Button>} />
             <DialogContent>
               <DialogHeader><DialogTitle>Add Module</DialogTitle></DialogHeader>
               <form onSubmit={handleAddModule} className="space-y-4 mt-2">

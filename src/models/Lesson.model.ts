@@ -23,6 +23,7 @@ export interface ILesson extends Document {
   order: number
   lessonType: "video" | "text"
   content: string
+  studentNotes?: string
   videoUrl?: string
   youtubeVideoId?: string
   videoCues: IVideoCue[]
@@ -57,6 +58,7 @@ const LessonSchema = new Schema<ILesson>(
     order: { type: Number, required: true, default: 0 },
     lessonType: { type: String, enum: ["video", "text"], default: "text" },
     content: { type: String, default: "" },
+    studentNotes: { type: String, default: "" },
     videoUrl: { type: String },
     youtubeVideoId: { type: String },
     videoCues: [VideoCueSchema],

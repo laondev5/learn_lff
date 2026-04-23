@@ -13,9 +13,29 @@ import { Types } from "mongoose"
 
 // ─── Courses ────────────────────────────────────────────────────────────────
 
+function getActionErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    if (error.message.includes("ETIMEDOUT")) {
+      return "Database connection timed out. Please try again in a moment."
+    }
+    return error.message || fallback
+  }
+  return fallback
+}
+
 const courseSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  isPaid: z.boolean().default(false),
+  price: z.number().min(0).default(0),
+}).superRefine((data, ctx) => {
+  if (data.isPaid && data.price <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["price"],
+      message: "Price must be greater than 0 for paid courses",
+    })
+  }
 })
 
 export async function createCourse(formData: FormData) {
@@ -25,12 +45,15 @@ export async function createCourse(formData: FormData) {
   const parsed = courseSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
+    isPaid: formData.get("isPaid") === "true",
+    price: Number(formData.get("price") ?? 0),
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
   const course = await Course.create({
     ...parsed.data,
+    price: parsed.data.isPaid ? parsed.data.price : 0,
     teacher: session.user.id,
   })
 
@@ -45,6 +68,8 @@ export async function updateCourse(courseId: string, formData: FormData) {
   const parsed = courseSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
+    isPaid: formData.get("isPaid") === "true",
+    price: Number(formData.get("price") ?? 0),
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
@@ -55,6 +80,7 @@ export async function updateCourse(courseId: string, formData: FormData) {
     { _id: courseId, teacher: session.user.id },
     {
       ...parsed.data,
+      price: parsed.data.isPaid ? parsed.data.price : 0,
       ...(coverImageUrl ? { coverImageUrl } : {}),
     }
   )
@@ -197,6 +223,7 @@ const lessonSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
   lessonType: z.enum(["video", "text"]).default("text"),
   content: z.string().default(""),
+  studentNotes: z.string().optional().default(""),
   videoUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
   youtubeVideoId: z.string().optional().or(z.literal("")),
 })
@@ -221,6 +248,7 @@ export async function createLesson(moduleId: string, formData: FormData) {
 
   const lessonType = (formData.get("lessonType")?.toString() ?? "text") as "video" | "text"
   const rawContent = formData.get("content")?.toString() ?? ""
+  const rawStudentNotes = formData.get("studentNotes")?.toString() ?? ""
   const rawVideo = formData.get("videoUrl")?.toString().trim()
   const rawYtId = formData.get("youtubeVideoId")?.toString().trim()
 
@@ -228,6 +256,7 @@ export async function createLesson(moduleId: string, formData: FormData) {
     title: formData.get("title"),
     lessonType,
     content: rawContent,
+    studentNotes: rawStudentNotes,
     videoUrl: rawVideo || undefined,
     youtubeVideoId: rawYtId || undefined,
   })
@@ -242,6 +271,7 @@ export async function createLesson(moduleId: string, formData: FormData) {
     title: parsed.data.title,
     lessonType: parsed.data.lessonType,
     content: parsed.data.content,
+    studentNotes: parsed.data.studentNotes || "",
     videoUrl: parsed.data.videoUrl || undefined,
     youtubeVideoId: parsed.data.youtubeVideoId || undefined,
     videoCues: [],
@@ -260,6 +290,7 @@ export async function updateLesson(lessonId: string, formData: FormData) {
 
   const lessonType = (formData.get("lessonType")?.toString() ?? "text") as "video" | "text"
   const rawContent = formData.get("content")?.toString() ?? ""
+  const rawStudentNotes = formData.get("studentNotes")?.toString() ?? ""
   const rawVideo = formData.get("videoUrl")?.toString().trim()
   const rawYtId = formData.get("youtubeVideoId")?.toString().trim()
 
@@ -267,6 +298,7 @@ export async function updateLesson(lessonId: string, formData: FormData) {
     title: formData.get("title"),
     lessonType,
     content: rawContent,
+    studentNotes: rawStudentNotes,
     videoUrl: rawVideo || undefined,
     youtubeVideoId: rawYtId || undefined,
   })
@@ -280,6 +312,7 @@ export async function updateLesson(lessonId: string, formData: FormData) {
     title: parsed.data.title,
     lessonType: parsed.data.lessonType,
     content: parsed.data.content,
+    studentNotes: parsed.data.studentNotes || "",
     videoUrl: parsed.data.videoUrl || undefined,
     youtubeVideoId: parsed.data.youtubeVideoId || undefined,
   })
@@ -292,41 +325,74 @@ export async function saveVideoCues(
   lessonId: string,
   cues: z.infer<typeof videoCueSchema>[]
 ) {
-  const session = await auth()
-  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
-  const parsed = z.array(videoCueSchema).safeParse(cues)
-  if (!parsed.success) return { error: parsed.error.issues[0].message }
+    const parsed = z.array(videoCueSchema).safeParse(cues)
+    if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  await connectDB()
-  const lesson = await Lesson.findById(lessonId).lean()
-  if (!lesson) return { error: "Lesson not found" }
+    await connectDB()
+    const lesson = await Lesson.findById(lessonId).lean()
+    if (!lesson) return { error: "Lesson not found" }
 
-  await Lesson.findByIdAndUpdate(lessonId, { videoCues: parsed.data })
+    await Lesson.findByIdAndUpdate(lessonId, { videoCues: parsed.data })
 
-  revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`)
-  return { success: true }
+    revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`)
+    return { success: true }
+  } catch (error: unknown) {
+    console.error("[SAVE_VIDEO_CUES]", error)
+    return { error: getActionErrorMessage(error, "Failed to save video cues") }
+  }
 }
 
 export async function saveLessonVideoUrl(lessonId: string, videoUrl: string) {
-  const session = await auth()
-  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
-  if (!videoUrl.startsWith("http")) return { error: "Invalid URL" }
+    if (!videoUrl.startsWith("http")) return { error: "Invalid URL" }
 
-  await connectDB()
-  const lesson = await Lesson.findById(lessonId)
-  if (!lesson) return { error: "Lesson not found" }
+    await connectDB()
+    const lesson = await Lesson.findById(lessonId)
+    if (!lesson) return { error: "Lesson not found" }
 
-  await Lesson.findByIdAndUpdate(lessonId, {
-    $set: { videoUrl },
-    $unset: { youtubeVideoId: 1 },
-  })
+    await Lesson.findByIdAndUpdate(lessonId, {
+      $set: { videoUrl },
+      $unset: { youtubeVideoId: 1 },
+    })
 
-  revalidatePath(
-    `/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`
-  )
-  return { success: true }
+    revalidatePath(
+      `/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`
+    )
+    return { success: true }
+  } catch (error: unknown) {
+    console.error("[SAVE_LESSON_VIDEO_URL]", error)
+    return { error: getActionErrorMessage(error, "Failed to save lesson video URL") }
+  }
+}
+
+export async function saveLessonStudentNotes(lessonId: string, studentNotes: string) {
+  try {
+    const session = await auth()
+    if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+
+    await connectDB()
+    const lesson = await Lesson.findById(lessonId).lean()
+    if (!lesson) return { error: "Lesson not found" }
+
+    const course = await Course.findOne({ _id: lesson.course, teacher: session.user.id }).lean()
+    if (!course) return { error: "Unauthorized" }
+
+    await Lesson.findByIdAndUpdate(lessonId, { studentNotes: studentNotes.trim() })
+
+    revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`)
+    revalidatePath(`/student/courses/${lesson.course.toString()}/lessons/${lessonId}`)
+    return { success: true }
+  } catch (error: unknown) {
+    console.error("[SAVE_LESSON_STUDENT_NOTES]", error)
+    return { error: getActionErrorMessage(error, "Failed to save student notes") }
+  }
 }
 
 export async function toggleLessonPublished(lessonId: string) {
@@ -380,32 +446,37 @@ const testSchema = z.object({
 })
 
 export async function saveTest(lessonId: string, data: z.infer<typeof testSchema>) {
-  const session = await auth()
-  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+  try {
+    const session = await auth()
+    if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
-  const parsed = testSchema.safeParse(data)
-  if (!parsed.success) return { error: parsed.error.issues[0].message }
+    const parsed = testSchema.safeParse(data)
+    if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  await connectDB()
-  const lesson = await Lesson.findById(lessonId).lean()
-  if (!lesson) return { error: "Lesson not found" }
+    await connectDB()
+    const lesson = await Lesson.findById(lessonId).lean()
+    if (!lesson) return { error: "Lesson not found" }
 
-  await Test.findOneAndUpdate(
-    { lesson: lessonId },
-    {
-      title: parsed.data.title,
-      lesson: lessonId,
-      course: lesson.course,
-      questions: parsed.data.questions,
-      passingScore: parsed.data.passingScore,
-      maxAttempts: parsed.data.maxAttempts,
-      isPublished: true,
-    },
-    { upsert: true, new: true }
-  )
+    await Test.findOneAndUpdate(
+      { lesson: lessonId },
+      {
+        title: parsed.data.title,
+        lesson: lessonId,
+        course: lesson.course,
+        questions: parsed.data.questions,
+        passingScore: parsed.data.passingScore,
+        maxAttempts: parsed.data.maxAttempts,
+        isPublished: true,
+      },
+      { upsert: true, new: true }
+    )
 
-  revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`)
-  return { success: true }
+    revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`)
+    return { success: true }
+  } catch (error: unknown) {
+    console.error("[SAVE_TEST]", error)
+    return { error: getActionErrorMessage(error, "Failed to save test") }
+  }
 }
 
 export async function deleteTest(lessonId: string) {
@@ -457,5 +528,3 @@ export async function saveExam(courseId: string, data: z.infer<typeof examSchema
   revalidatePath(`/teacher/courses/${courseId}/exam`)
   return { success: true }
 }
-
-

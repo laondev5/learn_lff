@@ -34,5 +34,5 @@ export default async function StudentExamPage({ params }: Props) {
     )
   }
 
-  return <ExamTakerClient exam={exam} courseId={courseId} />
+  return <ExamTakerClient assessmentId={exam.id} courseId={courseId} />
 }

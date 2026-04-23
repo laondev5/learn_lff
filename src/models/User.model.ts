@@ -28,6 +28,13 @@ export interface IUser extends Document {
     email: string
     location: string
   }
+  kycStatus?: "not_started" | "pending" | "verified" | "rejected"
+  kycLivePhotoUrl?: string
+  kycIdType?: "nin" | "passport" | "driver_license" | "voter_card"
+  kycIdNumber?: string
+  kycDateOfBirth?: Date
+  kycAddress?: string
+  kycSubmittedAt?: Date
   isActive: boolean
   mustChangePassword: boolean
   createdAt: Date
@@ -56,6 +63,20 @@ const UserSchema = new Schema<IUser>(
       email: { type: String, lowercase: true, trim: true },
       location: { type: String, trim: true },
     },
+    kycStatus: {
+      type: String,
+      enum: ["not_started", "pending", "verified", "rejected"],
+      default: "not_started",
+    },
+    kycLivePhotoUrl: { type: String },
+    kycIdType: {
+      type: String,
+      enum: ["nin", "passport", "driver_license", "voter_card"],
+    },
+    kycIdNumber: { type: String, trim: true },
+    kycDateOfBirth: { type: Date },
+    kycAddress: { type: String, trim: true },
+    kycSubmittedAt: { type: Date },
     isActive: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: true },
   },

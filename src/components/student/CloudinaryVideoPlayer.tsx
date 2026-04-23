@@ -100,11 +100,15 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
       <div className="aspect-video rounded-md overflow-hidden border bg-black">
         <video
           ref={videoRef}
-          src={videoUrl}
+          src={videoUrl.includes("res.cloudinary.com") && videoUrl.includes("/video/upload/") && !videoUrl.includes("c_limit,")
+            ? videoUrl.replace("/video/upload/", "/video/upload/c_limit,w_1280,h_720,q_auto,vc_auto/")
+            : videoUrl}
           controls
           className="w-full h-full"
           onTimeUpdate={handleTimeUpdate}
-          controlsList="nodownload"
+          controlsList="nodownload noremoteplayback"
+          disablePictureInPicture
+          onContextMenu={(e) => e.preventDefault()}
         />
       </div>
 

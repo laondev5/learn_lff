@@ -13,7 +13,13 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   await connectDB()
   const user = await User.findById(session.user.id).lean()
-  const profileComplete = !!(user?.country && user?.state && user?.city && user?.ordination)
+  const profileComplete = !!(
+    user?.country &&
+    user?.state &&
+    user?.city &&
+    user?.ordination &&
+    user?.kycStatus !== "not_started"
+  )
 
   return (
     <StudentLayoutClient

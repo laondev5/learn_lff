@@ -43,11 +43,11 @@ export function StudentLayoutClient({ user, profileComplete, children }: Student
           <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">
-              Your profile is incomplete.{" "}
+              Your profile or KYC is incomplete.{" "}
               <Link href="/student/profile" className="font-semibold underline underline-offset-2 hover:opacity-80">
-                Complete your profile
+                Complete your profile & KYC
               </Link>{" "}
-              to provide your country, state, city and ordination.
+              to ensure your identity is verified and access all features.
             </span>
             <button
               onClick={() => setAlertDismissed(true)}

@@ -62,15 +62,19 @@ export async function getMessages(forumId: string, limit = 50) {
     .lean()
 
   return messages.reverse().map((m) => {
-    const sender = m.sender as unknown as { _id: Types.ObjectId; name: string; role: string }
+    const sender = m.sender as unknown as { _id: Types.ObjectId; name: string; role: string } | null
     return {
       id: m._id.toString(),
       content: m.content,
       createdAt: m.createdAt.toISOString(),
-      sender: {
+      sender: sender ? {
         id: sender._id.toString(),
         name: sender.name,
         role: sender.role,
+      } : {
+        id: "unknown",
+        name: "Unknown User",
+        role: "student"
       },
     }
   })

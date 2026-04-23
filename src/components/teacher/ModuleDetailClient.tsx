@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
-  ChevronRight, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Plus, Trash2, Upload, Video,
+  ChevronRight, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Plus, Trash2, Upload, Video, ClipboardCheck
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -107,6 +107,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
   const [title, setTitle] = useState("")
   const [lessonType, setLessonType] = useState<"text" | "video">("text")
   const [content, setContent] = useState("")
+  const [studentNotes, setStudentNotes] = useState("")
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploading, setUploading] = useState(false)
@@ -152,6 +153,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
     fd.set("title", title)
     fd.set("lessonType", lessonType)
     fd.set("content", content)
+    fd.set("studentNotes", studentNotes)
     if (uploadedUrl) fd.set("videoUrl", uploadedUrl)
     const result = await createLesson(mod.id, fd)
     if (result.error) {
@@ -162,6 +164,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
       setTitle("")
       setLessonType("text")
       setContent("")
+      setStudentNotes("")
       setVideoFile(null)
       setUploadProgress(0)
       const el = document.getElementById(fileInputId) as HTMLInputElement | null
@@ -190,11 +193,15 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Lessons</h2>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Lesson
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/teacher/courses/${mod.courseId}/modules/${mod.id}/test`}>
+              <ClipboardCheck className="mr-2 h-4 w-4" />
+              Module Test
+            </Link>
+          </Button>
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger render={<Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Lesson</Button>} />
           <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Add Lesson</DialogTitle></DialogHeader>
             <form onSubmit={handleAddLesson} className="space-y-4 mt-2">
@@ -243,6 +250,16 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                   />
                 </div>
               )}
+              <div className="space-y-2">
+                <Label>Notes For Students (Optional)</Label>
+                <Textarea
+                  value={studentNotes}
+                  onChange={(e) => setStudentNotes(e.target.value)}
+                  placeholder="Add notes students should see in this lesson..."
+                  rows={3}
+                  disabled={adding}
+                />
+              </div>
               {lessonType === "video" && (
                 <div className="space-y-3">
                   <Label>Video File</Label>
@@ -309,6 +326,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {mod.lessons.length === 0 ? (

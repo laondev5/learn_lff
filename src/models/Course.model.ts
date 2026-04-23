@@ -6,6 +6,8 @@ export interface ICourse extends Document {
   description: string
   teacher: Types.ObjectId
   coverImageUrl?: string
+  isPaid: boolean
+  price: number
   isPublished: boolean
   createdAt: Date
   updatedAt: Date
@@ -17,6 +19,8 @@ const CourseSchema = new Schema<ICourse>(
     description: { type: String, required: true },
     teacher: { type: Schema.Types.ObjectId, ref: "User", required: true },
     coverImageUrl: { type: String },
+    isPaid: { type: Boolean, default: false },
+    price: { type: Number, default: 0, min: 0 },
     isPublished: { type: Boolean, default: false },
   },
   { timestamps: true }

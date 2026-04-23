@@ -25,6 +25,12 @@ export default async function StudentProfilePage() {
         state: user.state,
         city: user.city,
         ordination: user.ordination,
+        kycStatus: user.kycStatus,
+        kycIdType: user.kycIdType,
+        kycIdNumber: user.kycIdNumber,
+        kycDateOfBirth: user.kycDateOfBirth ? user.kycDateOfBirth.toISOString().split("T")[0] : undefined,
+        kycAddress: user.kycAddress,
+        kycLivePhotoUrl: user.kycLivePhotoUrl,
       }}
     />
   )

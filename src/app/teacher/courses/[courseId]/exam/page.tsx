@@ -1,5 +1,5 @@
 import { getCourseExam } from "@/lib/course.queries"
-import { ExamBuilderClient } from "@/components/teacher/ExamBuilderClient"
+import { AssessmentBuilderClient } from "@/components/teacher/AssessmentBuilderClient"
 import { ChevronRight } from "lucide-react"
 import Link from "next/link"
 
@@ -26,7 +26,8 @@ export default async function ExamPage({ params }: Props) {
           Students take this exam after completing all modules
         </p>
       </div>
-      <ExamBuilderClient courseId={courseId} exam={exam} />
+      
+      <AssessmentBuilderClient courseId={courseId} assessment={exam} />
     </div>
   )
 }

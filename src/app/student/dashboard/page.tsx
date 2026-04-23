@@ -138,7 +138,11 @@ export default async function StudentDashboardPage() {
                   <CardDescription className="line-clamp-2">{c.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="mt-auto">
-                  <EnrollCourseButton courseId={c.id} />
+                  <EnrollCourseButton 
+                    courseId={c.id} 
+                    isPaid={c.isPaid} 
+                    price={c.price} 
+                  />
                 </CardContent>
               </Card>
             ))}

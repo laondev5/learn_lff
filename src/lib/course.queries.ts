@@ -6,7 +6,7 @@ import Course from "@/models/Course.model"
 import Module from "@/models/Module.model"
 import Lesson from "@/models/Lesson.model"
 import Test from "@/models/Test.model"
-import Exam from "@/models/Exam.model"
+import Assessment from "@/models/Assessment.model"
 import { Types } from "mongoose"
 
 // ─── Course Queries ───────────────────────────────────────────────────────────
@@ -24,6 +24,8 @@ export async function getTeacherCourses() {
     id: c._id.toString(),
     title: c.title,
     description: c.description,
+    isPaid: c.isPaid ?? false,
+    price: c.price ?? 0,
     isPublished: c.isPublished,
     createdAt: c.createdAt.toISOString(),
   }))
@@ -62,6 +64,8 @@ export async function getCourseWithModules(courseId: string) {
     id: course._id.toString(),
     title: course.title,
     description: course.description,
+    isPaid: course.isPaid ?? false,
+    price: course.price ?? 0,
     coverImageUrl: course.coverImageUrl ?? null,
     isPublished: course.isPublished,
     modules: modulesWithLessons,
@@ -128,6 +132,7 @@ export async function getLessonWithTest(lessonId: string) {
     title: lesson.title,
     lessonType: lesson.lessonType ?? "text",
     content: lesson.content,
+    studentNotes: lesson.studentNotes ?? "",
     videoUrl: lesson.videoUrl ?? null,
     youtubeVideoId: lesson.youtubeVideoId ?? null,
     videoCues: (lesson.videoCues ?? []).map((cue) => ({
@@ -172,18 +177,20 @@ export async function getCourseExam(courseId: string) {
   if (!session?.user || session.user.role !== "teacher") return null
 
   await connectDB()
-  const exam = await Exam.findOne({ course: courseId }).lean()
+  const exam = await Assessment.findOne({ course: courseId, type: "exam" }).lean()
   if (!exam) return null
 
   return {
-    id: exam._id.toString(),
+    _id: exam._id.toString(),
     title: exam.title,
-    passingScore: exam.passingScore,
+    type: exam.type,
+    passingMarks: exam.passingMarks,
     maxAttempts: exam.maxAttempts,
     durationMinutes: exam.durationMinutes ?? null,
+    proctoringEnabled: exam.proctoringEnabled ?? false,
     isPublished: exam.isPublished,
     questions: exam.questions.map((q) => ({
-      id: (q._id as Types.ObjectId).toString(),
+      _id: (q._id as Types.ObjectId).toString(),
       text: q.text,
       type: q.type,
       options: q.options ?? [],

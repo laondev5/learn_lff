@@ -3,12 +3,31 @@
 import { z } from "zod"
 import bcryptjs from "bcryptjs"
 import { connectDB } from "@/lib/mongoose"
+import cloudinary from "@/lib/cloudinary"
 import User from "@/models/User.model"
 import ChatForum from "@/models/ChatForum.model"
+import Course from "@/models/Course.model"
+import Module from "@/models/Module.model"
+import Lesson from "@/models/Lesson.model"
+import Test from "@/models/Test.model"
+import TestSubmission from "@/models/TestSubmission.model"
+import Exam from "@/models/Exam.model"
+import ExamSubmission from "@/models/ExamSubmission.model"
+import StudentProgress from "@/models/StudentProgress.model"
+import Certificate from "@/models/Certificate.model"
+import CourseQuestion from "@/models/CourseQuestion.model"
+import CourseSettings from "@/models/CourseSettings.model"
+import Assessment from "@/models/Assessment.model"
+import Submission from "@/models/Submission.model"
+import ProctoringSession from "@/models/ProctoringSession.model"
+import PaymentTransaction from "@/models/PaymentTransaction.model"
+import Announcement from "@/models/Announcement.model"
+import LiveClass from "@/models/LiveClass.model"
 import { ORDINATION_OPTIONS } from "@/lib/constants"
 import { sendEmail, credentialsEmailHtml, accountabilityPartnerWelcomeEmailHtml } from "@/lib/email"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { Types } from "mongoose"
 
 const createUserSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -29,11 +48,51 @@ const updateProfileSchema = z.object({
   ordination: z.enum(ORDINATION_OPTIONS as unknown as [string, ...string[]], {
     message: "Please select an ordination",
   }),
+  // KYC fields
+  kycIdType: z.enum(["nin", "passport", "driver_license", "voter_card"]).optional(),
+  kycIdNumber: z.string().optional(),
+  kycDateOfBirth: z.string().optional(),
+  kycAddress: z.string().optional(),
+  kycLivePhotoUrl: z.string().optional(),
 })
 
 function generateTempPassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
   return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
+}
+
+function extractCloudinaryPublicId(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.hostname.includes("res.cloudinary.com")) return null
+
+    const parts = parsed.pathname.split("/").filter(Boolean)
+    const uploadIdx = parts.findIndex((p) => p === "upload")
+    if (uploadIdx === -1) return null
+
+    const versionIdx = parts.findIndex((p, idx) => idx > uploadIdx && /^v\d+$/.test(p))
+    const startIdx = versionIdx !== -1 ? versionIdx + 1 : uploadIdx + 1
+    if (startIdx >= parts.length) return null
+
+    const publicIdParts = parts.slice(startIdx)
+    const last = publicIdParts[publicIdParts.length - 1]
+    publicIdParts[publicIdParts.length - 1] = last.replace(/\.[^/.]+$/, "")
+
+    return publicIdParts.join("/")
+  } catch {
+    return null
+  }
+}
+
+async function deleteCloudinaryAssetByUrl(url: string) {
+  const publicId = extractCloudinaryPublicId(url)
+  if (!publicId) return
+
+  // Try both resource types because lesson media may be image or video.
+  await Promise.allSettled([
+    cloudinary.uploader.destroy(publicId, { resource_type: "image", invalidate: true }),
+    cloudinary.uploader.destroy(publicId, { resource_type: "video", invalidate: true }),
+  ])
 }
 
 export async function createUser(formData: FormData) {
@@ -156,6 +215,59 @@ export async function deleteUser(userId: string) {
   }
 
   await connectDB()
+
+  const user = await User.findById(userId).lean()
+  if (!user) return { error: "User not found" }
+
+  if (user.role === "teacher") {
+    const teacherId = new Types.ObjectId(userId)
+    const courses = await Course.find({ teacher: teacherId })
+      .select("_id coverImageUrl")
+      .lean<{ _id: Types.ObjectId; coverImageUrl?: string }[]>()
+
+    const courseIds = courses.map((c) => c._id)
+
+    if (courseIds.length > 0) {
+      const lessons = await Lesson.find({ course: { $in: courseIds } })
+        .select("videoUrl")
+        .lean<{ videoUrl?: string }[]>()
+
+      const assetUrls = [
+        ...courses.map((c) => c.coverImageUrl).filter((url): url is string => !!url),
+        ...lessons.map((l) => l.videoUrl).filter((url): url is string => !!url),
+      ]
+
+      await Promise.all(assetUrls.map((url) => deleteCloudinaryAssetByUrl(url)))
+
+      await Promise.all([
+        Announcement.deleteMany({ course: { $in: courseIds } }),
+        LiveClass.deleteMany({ course: { $in: courseIds } }),
+        CourseQuestion.deleteMany({ course: { $in: courseIds } }),
+        CourseSettings.deleteMany({ course: { $in: courseIds } }),
+        Assessment.deleteMany({ course: { $in: courseIds } }),
+        Submission.deleteMany({ course: { $in: courseIds } }),
+        ProctoringSession.deleteMany({ course: { $in: courseIds } }),
+        TestSubmission.deleteMany({ course: { $in: courseIds } }),
+        ExamSubmission.deleteMany({ course: { $in: courseIds } }),
+        StudentProgress.deleteMany({ course: { $in: courseIds } }),
+        Certificate.deleteMany({ course: { $in: courseIds } }),
+        PaymentTransaction.deleteMany({ course: { $in: courseIds } }),
+        Test.deleteMany({ course: { $in: courseIds } }),
+        Exam.deleteMany({ course: { $in: courseIds } }),
+        Lesson.deleteMany({ course: { $in: courseIds } }),
+        Module.deleteMany({ course: { $in: courseIds } }),
+        Course.deleteMany({ _id: { $in: courseIds } }),
+      ])
+    }
+
+    // Remove teacher-owned records not strictly tied to a course.
+    await Promise.all([
+      Announcement.deleteMany({ teacher: teacherId }),
+      LiveClass.deleteMany({ instructor: teacherId }),
+      Assessment.deleteMany({ createdBy: teacherId }),
+    ])
+  }
+
   await User.findByIdAndDelete(userId)
 
   revalidatePath("/admin/users")
@@ -173,17 +285,49 @@ export async function updateProfile(formData: FormData) {
     state: formData.get("state"),
     city: formData.get("city"),
     ordination: formData.get("ordination"),
+    kycIdType: formData.get("kycIdType") || undefined,
+    kycIdNumber: formData.get("kycIdNumber") || undefined,
+    kycDateOfBirth: formData.get("kycDateOfBirth") || undefined,
+    kycAddress: formData.get("kycAddress") || undefined,
+    kycLivePhotoUrl: formData.get("kycLivePhotoUrl") || undefined,
   })
 
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
-  await User.findByIdAndUpdate(session.user.id, {
+  
+  type ProfileUpdateData = {
+    country: string
+    state: string
+    city: string
+    ordination: z.infer<typeof updateProfileSchema>["ordination"]
+    kycIdType?: "nin" | "passport" | "driver_license" | "voter_card"
+    kycIdNumber?: string
+    kycDateOfBirth?: Date
+    kycAddress?: string
+    kycLivePhotoUrl?: string
+    kycStatus?: "pending"
+    kycSubmittedAt?: Date
+  }
+
+  const updateData: ProfileUpdateData = {
     country: parsed.data.country,
     state: parsed.data.state,
     city: parsed.data.city,
     ordination: parsed.data.ordination,
-  })
+  }
+
+  if (parsed.data.kycIdType) updateData.kycIdType = parsed.data.kycIdType
+  if (parsed.data.kycIdNumber) updateData.kycIdNumber = parsed.data.kycIdNumber
+  if (parsed.data.kycDateOfBirth) updateData.kycDateOfBirth = new Date(parsed.data.kycDateOfBirth)
+  if (parsed.data.kycAddress) updateData.kycAddress = parsed.data.kycAddress
+  if (parsed.data.kycLivePhotoUrl) {
+    updateData.kycLivePhotoUrl = parsed.data.kycLivePhotoUrl
+    updateData.kycStatus = "pending"
+    updateData.kycSubmittedAt = new Date()
+  }
+
+  await User.findByIdAndUpdate(session.user.id, updateData)
 
   revalidatePath(`/${session.user.role}/profile`)
   return { success: true }
@@ -207,5 +351,33 @@ export async function getUsers(role?: "teacher" | "student") {
     cohort: u.cohort,
     isActive: u.isActive,
     createdAt: u.createdAt.toISOString(),
+    kycStatus: u.kycStatus ?? "not_started",
+    kycIdType: u.kycIdType,
+    kycIdNumber: u.kycIdNumber,
+    kycDateOfBirth: u.kycDateOfBirth ? u.kycDateOfBirth.toISOString().split("T")[0] : undefined,
+    kycAddress: u.kycAddress,
+    kycLivePhotoUrl: u.kycLivePhotoUrl,
+    kycSubmittedAt: u.kycSubmittedAt ? u.kycSubmittedAt.toISOString() : undefined,
   }))
+}
+
+export async function reviewKyc(userId: string, decision: "verified" | "rejected") {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "admin") {
+    return { error: "Unauthorized" }
+  }
+
+  await connectDB()
+  const user = await User.findById(userId)
+  if (!user) return { error: "User not found" }
+
+  if (user.kycStatus !== "pending") {
+    return { error: "KYC is not in a pending state" }
+  }
+
+  user.kycStatus = decision
+  await user.save()
+
+  revalidatePath("/admin/users")
+  return { success: true, kycStatus: decision }
 }

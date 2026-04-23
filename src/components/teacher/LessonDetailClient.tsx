@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl } from "@/actions/course.actions"
+import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes } from "@/actions/course.actions"
 
 type QuestionType = "mcq" | "true_false" | "short_answer"
 
@@ -49,6 +49,7 @@ interface LessonData {
   title: string
   lessonType: "video" | "text"
   content: string
+  studentNotes: string
   videoUrl: string | null
   youtubeVideoId: string | null
   videoCues: VideoCue[]
@@ -92,13 +93,15 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
   const [savingCues, setSavingCues] = useState(false)
 
   // --- Video upload state ---
-  const MAX_VIDEO_MB = 100
+  const MAX_VIDEO_MB = 1024
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [currentVideoUrl, setCurrentVideoUrl] = useState(lesson.videoUrl ?? "")
   const [pasteUrlInput, setPasteUrlInput] = useState("")
   const [savingUrl, setSavingUrl] = useState(false)
+  const [studentNotes, setStudentNotes] = useState(lesson.studentNotes ?? "")
+  const [savingNotes, setSavingNotes] = useState(false)
 
   // --- Test handlers ---
   function addQuestion() { setQuestions((prev) => [...prev, emptyQuestion()]) }
@@ -209,10 +212,11 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setUploadProgress(0)
 
     try {
-      const signRes = await fetch("/api/video/sign")
+      const needsCompression = uploadFile.size > 100 * 1024 * 1024
+      const signRes = await fetch(`/api/video/sign?compress=${needsCompression}`)
       if (!signRes.ok) throw new Error("Failed to get upload credentials")
-      const { cloudName, apiKey, timestamp, signature, folder } = await signRes.json() as {
-        cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string
+      const { cloudName, apiKey, timestamp, signature, folder, eager, eagerAsync } = await signRes.json() as {
+        cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string; eager?: string; eagerAsync?: boolean
       }
 
       const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB per chunk
@@ -233,6 +237,8 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
           fd.append("timestamp", String(timestamp))
           fd.append("signature", signature)
           fd.append("folder", folder)
+          if (eager) fd.append("eager", eager)
+          if (eagerAsync) fd.append("eager_async", String(eagerAsync))
 
           const xhr = new XMLHttpRequest()
           xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`)
@@ -294,6 +300,14 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setSavingUrl(false)
   }
 
+  async function handleSaveStudentNotes() {
+    setSavingNotes(true)
+    const result = await saveLessonStudentNotes(lesson.id, studentNotes)
+    if (result.error) toast.error(result.error)
+    else toast.success("Student notes saved")
+    setSavingNotes(false)
+  }
+
   const isCloudinaryUrl = currentVideoUrl.includes("cloudinary.com")
   const youtubeEmbedId = !isCloudinaryUrl ? extractYouTubeId(currentVideoUrl) : ""
 
@@ -327,6 +341,9 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
           <TabsTrigger value="content" className="gap-2">
             <FileText className="h-4 w-4" />Content
           </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2">
+            <FileText className="h-4 w-4" />Student Notes
+          </TabsTrigger>
           {lesson.lessonType === "video" && (
             <>
               <TabsTrigger value="video" className="gap-2">
@@ -359,6 +376,30 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
           </Card>
         </TabsContent>
 
+        {/* ── STUDENT NOTES TAB ── */}
+        <TabsContent value="notes" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Notes For Students</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Add additional notes, reminders, and key takeaways students should see while studying this lesson.
+              </p>
+              <Textarea
+                value={studentNotes}
+                onChange={(e) => setStudentNotes(e.target.value)}
+                rows={8}
+                placeholder="Write notes for students..."
+              />
+              <Button onClick={handleSaveStudentNotes} disabled={savingNotes}>
+                {savingNotes ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Save Notes
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ── VIDEO TAB ── */}
         {lesson.lessonType === "video" && (
           <TabsContent value="video" className="mt-6 space-y-6">
@@ -371,7 +412,9 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
                 <CardContent>
                   {isCloudinaryUrl ? (
                     <div className="aspect-video rounded-md overflow-hidden border bg-black">
-                      <video src={currentVideoUrl} controls className="w-full h-full" controlsList="nodownload" />
+                      <video src={currentVideoUrl.includes("/video/upload/") && !currentVideoUrl.includes("c_limit,") 
+                        ? currentVideoUrl.replace("/video/upload/", "/video/upload/c_limit,w_1280,h_720,q_auto,vc_auto/")
+                        : currentVideoUrl} controls className="w-full h-full" controlsList="nodownload" />
                     </div>
                   ) : youtubeEmbedId ? (
                     <div className="aspect-video rounded-md overflow-hidden border">

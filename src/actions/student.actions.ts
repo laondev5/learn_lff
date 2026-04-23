@@ -7,14 +7,40 @@ import Course from "@/models/Course.model"
 import Module from "@/models/Module.model"
 import Lesson from "@/models/Lesson.model"
 import Test from "@/models/Test.model"
-import Exam from "@/models/Exam.model"
+import Assessment from "@/models/Assessment.model"
 import StudentProgress from "@/models/StudentProgress.model"
 import TestSubmission from "@/models/TestSubmission.model"
 import ExamSubmission from "@/models/ExamSubmission.model"
 import Certificate from "@/models/Certificate.model"
 import { Types } from "mongoose"
 
+import { initializePaystackPayment } from "@/lib/paystack"
+
 // ─── Enrollment & Course Listing ─────────────────────────────────────────────
+
+export async function initializeCoursePayment(courseId: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
+
+  await connectDB()
+  const course = await Course.findById(courseId).lean()
+  if (!course) return { error: "Course not found" }
+  if (!course.isPaid) return { error: "This course is free. Use direct enrollment." }
+
+  try {
+    const paymentData = await initializePaystackPayment({
+      email: session.user.email!,
+      amount: course.price,
+      courseId: course._id.toString(),
+      studentId: session.user.id,
+    })
+
+    return { success: true, authorizationUrl: paymentData.authorization_url }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to initialize payment"
+    return { error: message }
+  }
+}
 
 export async function getEnrolledCourses() {
   const session = await auth()
@@ -62,6 +88,8 @@ export async function getAvailableCourses() {
     id: c._id.toString(),
     title: c.title,
     description: c.description,
+    isPaid: c.isPaid,
+    price: c.price,
   }))
 }
 
@@ -126,7 +154,7 @@ export async function getCourseForStudent(courseId: string) {
     })
   )
 
-  const exam = await Exam.findOne({ course: courseId, isPublished: true }).lean()
+  const exam = await Assessment.findOne({ course: courseId, type: "exam", isPublished: true }).lean()
 
   const totalLessons = modulesData.reduce((acc, mod) => acc + mod.lessons.length, 0)
   const completedLessonsCount = modulesData.reduce(
@@ -194,6 +222,7 @@ export async function getLessonForStudent(lessonId: string) {
     title: lesson.title,
     lessonType: lesson.lessonType ?? "text",
     content: lesson.content,
+    studentNotes: lesson.studentNotes ?? "",
     videoUrl: lesson.videoUrl ?? null,
     youtubeVideoId: lesson.youtubeVideoId ?? null,
     videoCues: (lesson.videoCues ?? []).map((cue) => ({
@@ -384,7 +413,7 @@ export async function getExamForStudent(courseId: string) {
 
   if (progress.examPassed) return { error: "You have already passed this exam" }
 
-  const exam = await Exam.findOne({ course: courseId, isPublished: true }).lean()
+  const exam = await Assessment.findOne({ course: courseId, type: "exam", isPublished: true }).lean()
   if (!exam) return { error: "No exam available for this course" }
 
   const attemptCount = await ExamSubmission.countDocuments({
@@ -398,7 +427,7 @@ export async function getExamForStudent(courseId: string) {
   return {
     id: exam._id.toString(),
     title: exam.title,
-    passingScore: exam.passingScore,
+    passingScore: exam.passingMarks,
     maxAttempts: exam.maxAttempts,
     durationMinutes: exam.durationMinutes ?? null,
     attemptsUsed: attemptCount,
@@ -417,7 +446,7 @@ export async function submitExam(examId: string, answers: Record<string, string>
   if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
 
   await connectDB()
-  const exam = await Exam.findById(examId).lean()
+  const exam = await Assessment.findById(examId).lean()
   if (!exam) return { error: "Exam not found" }
 
   const progress = await StudentProgress.findOne({
@@ -446,7 +475,7 @@ export async function submitExam(examId: string, answers: Record<string, string>
   })
 
   const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0
-  const passed = score >= exam.passingScore
+  const passed = score >= exam.passingMarks
   const attemptCountForSubmit = await ExamSubmission.countDocuments({
     student: session.user.id,
     exam: examId,
@@ -477,5 +506,5 @@ export async function submitExam(examId: string, answers: Record<string, string>
   }
 
   revalidatePath(`/student/courses/${exam.course.toString()}`)
-  return { success: true, score, passed, passingScore: exam.passingScore }
+  return { success: true, score, passed, passingScore: exam.passingMarks }
 }
