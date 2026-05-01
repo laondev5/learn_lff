@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -26,6 +27,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function ChangePasswordPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormData>({
@@ -51,12 +53,22 @@ export default function ChangePasswordPage() {
     }
     const destination = dashboardMap[result.role ?? ""] ?? "/"
 
-    await signIn("credentials", {
+    const signInResult = await signIn("credentials", {
       email: result.email,
       password: data.newPassword,
-      redirect: true,
+      redirect: false,
       callbackUrl: destination,
     })
+
+    if (signInResult?.error) {
+      toast.error("Password changed, but automatic sign-in failed. Please sign in again.")
+      router.replace("/auth/login")
+      router.refresh()
+      return
+    }
+
+    router.replace(destination)
+    router.refresh()
   }
 
   return (

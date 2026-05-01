@@ -1,5 +1,6 @@
 import { connectDB } from "./mongoose"
 import PaymentTransaction from "@/models/PaymentTransaction.model"
+import { getAppUrl } from "@/lib/app-url"
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY
 
@@ -30,7 +31,7 @@ export async function initializePaystackPayment({
       email,
       amount: amount * 100, // Paystack expects amount in kobo
       reference,
-      callback_url: `${process.env.NEXTAUTH_URL}/api/payments/verify`,
+      callback_url: `${getAppUrl()}/api/payments/verify`,
       metadata: {
         courseId,
         studentId,

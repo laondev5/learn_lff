@@ -1,5 +1,6 @@
 import "server-only"
 import nodemailer from "nodemailer"
+import { getAppUrl } from "@/lib/app-url"
 
 const port = Number(process.env.EMAIL_PORT) || 587
 
@@ -29,6 +30,8 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions) {
 }
 
 export function credentialsEmailHtml(name: string, email: string, password: string) {
+  const appUrl = getAppUrl()
+
   return `
     <!DOCTYPE html>
     <html>
@@ -45,7 +48,7 @@ export function credentialsEmailHtml(name: string, email: string, password: stri
             <p style="margin: 0;"><strong>Email:</strong> ${email}</p>
             <p style="margin: 8px 0 0;"><strong>Temporary Password:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${password}</code></p>
           </div>
-          <p>Please <a href="${process.env.NEXT_PUBLIC_APP_URL}/auth/login" style="color: #2563eb;">log in</a> and change your password immediately.</p>
+          <p>Please <a href="${appUrl}/auth/login" style="color: #2563eb;">log in</a> and change your password immediately.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #64748b; font-size: 13px; margin: 0;">This email was sent by LFF LMS. Please do not reply.</p>
         </div>
@@ -55,6 +58,8 @@ export function credentialsEmailHtml(name: string, email: string, password: stri
 }
 
 export function urgentQuestionEmailHtml(teacherName: string, studentName: string, courseTitle: string, questionTitle: string, questionContent: string) {
+  const appUrl = getAppUrl()
+
   return `
     <!DOCTYPE html>
     <html>
@@ -72,7 +77,7 @@ export function urgentQuestionEmailHtml(teacherName: string, studentName: string
             <p style="margin: 8px 0 0; color: #4b5563;">${questionContent}</p>
           </div>
           <p>Please log in to your dashboard to provide a response as soon as possible.</p>
-          <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/teacher/courses" style="color: #2563eb; text-decoration: none; font-weight: 500;">View Course Q&A</a></p>
+          <p><a href="${appUrl}/teacher/courses" style="color: #2563eb; text-decoration: none; font-weight: 500;">View Course Q&A</a></p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #64748b; font-size: 13px; margin: 0;">This email was sent by LFF LMS. Please do not reply.</p>
         </div>
