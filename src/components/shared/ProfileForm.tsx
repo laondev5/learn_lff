@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -60,6 +61,10 @@ export function ProfileForm({ current }: ProfileFormProps) {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [livePhotoUrl, setLivePhotoUrl] = useState(current.kycLivePhotoUrl || "")
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraError, setCameraError] = useState("")
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   const {
     register,
@@ -80,10 +85,51 @@ export function ProfileForm({ current }: ProfileFormProps) {
     },
   })
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
 
+  useEffect(() => {
+    return () => {
+      stopCamera()
+    }
+  }, [])
+
+  async function startCamera() {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera is not supported on this device or browser.")
+      return
+    }
+
+    setCameraError("")
+    setUploading(true)
+
+    try {
+      stopCamera()
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      })
+
+      streamRef.current = stream
+      setCameraOpen(true)
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+    } catch {
+      setCameraError("Unable to access your camera. Please allow camera permission and try again.")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function uploadCapturedPhoto(file: File) {
     setUploading(true)
     const formData = new FormData()
     formData.append("file", file)
@@ -94,18 +140,54 @@ export function ProfileForm({ current }: ProfileFormProps) {
         method: "POST",
         body: formData,
       })
+
       const data = await res.json()
       if (data.url) {
         setLivePhotoUrl(data.url)
-        toast.success("Photo uploaded")
-      } else {
-        toast.error("Upload failed")
+        setCameraOpen(false)
+        stopCamera()
+        toast.success("Photo captured successfully")
+        return
       }
-    } catch (err) {
-      toast.error("Error uploading file")
+
+      toast.error("Photo upload failed")
+    } catch {
+      toast.error("Error uploading captured photo")
     } finally {
       setUploading(false)
     }
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      toast.error("Camera is not ready yet. Please try again.")
+      return
+    }
+
+    const canvas = document.createElement("canvas")
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+
+    const context = canvas.getContext("2d")
+    if (!context) {
+      toast.error("Unable to capture photo from the camera.")
+      return
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((value) => resolve(value), "image/jpeg", 0.92)
+    })
+
+    if (!blob) {
+      toast.error("Unable to create image file from the camera capture.")
+      return
+    }
+
+    const file = new File([blob], `kyc-live-photo-${Date.now()}.jpg`, { type: "image/jpeg" })
+    await uploadCapturedPhoto(file)
   }
 
   async function onSubmit(data: FormData) {
@@ -290,46 +372,87 @@ export function ProfileForm({ current }: ProfileFormProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Live Photo / Identification Document</Label>
+                      <Label>Live Photo</Label>
                       <div className="flex flex-col gap-4">
                         {livePhotoUrl ? (
                           <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
-                            <img src={livePhotoUrl} alt="KYC Document" className="w-full h-full object-cover" />
+                            <Image
+                              src={livePhotoUrl}
+                              alt="KYC live photo"
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
                             {current.kycStatus !== "verified" && (
                               <Button
                                 type="button"
                                 variant="destructive"
                                 size="sm"
                                 className="absolute bottom-2 right-2"
-                                onClick={() => setLivePhotoUrl("")}
+                                onClick={() => {
+                                  setLivePhotoUrl("")
+                                  setCameraError("")
+                                  void startCamera()
+                                }}
                               >
-                                Change
+                                Retake
                               </Button>
                             )}
+                          </div>
+                        ) : cameraOpen ? (
+                          <div className="space-y-3">
+                            <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-black">
+                              <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                onClick={() => void capturePhoto()}
+                                disabled={uploading}
+                              >
+                                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Take Picture"}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={uploading}
+                                onClick={() => {
+                                  setCameraOpen(false)
+                                  stopCamera()
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Position your face clearly in the frame, then take the picture.
+                            </p>
                           </div>
                         ) : (
                           <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center space-y-2 bg-muted/30">
                             <Camera className="h-8 w-8 text-muted-foreground" />
                             <div className="space-y-1">
-                              <p className="text-sm font-medium">Upload a clear photo of yourself holding your ID</p>
-                              <p className="text-xs text-muted-foreground">PNG, JPG or WEBP up to 5MB</p>
+                              <p className="text-sm font-medium">Take a live photo of yourself with your device camera</p>
+                              <p className="text-xs text-muted-foreground">Allow camera access, then capture a clear photo</p>
                             </div>
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               disabled={uploading}
-                              onClick={() => document.getElementById("photo-upload")?.click()}
+                              onClick={() => void startCamera()}
                             >
-                              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Choose File"}
+                              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Open Camera"}
                             </Button>
-                            <input
-                              id="photo-upload"
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={handleFileUpload}
-                            />
+                            {cameraError && (
+                              <p className="text-xs text-destructive">{cameraError}</p>
+                            )}
                           </div>
                         )}
                       </div>

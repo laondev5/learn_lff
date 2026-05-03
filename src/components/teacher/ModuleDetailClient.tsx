@@ -202,7 +202,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
           </Button>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger render={<Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Lesson</Button>} />
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Add Lesson</DialogTitle></DialogHeader>
             <form onSubmit={handleAddLesson} className="space-y-4 mt-2">
               <div className="space-y-2">
@@ -246,6 +246,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                     onChange={(e) => setContent(e.target.value)}
                     placeholder="Lesson content..."
                     rows={5}
+                    className="max-h-64 resize-y overflow-y-auto"
                     disabled={adding}
                   />
                 </div>
@@ -257,6 +258,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                   onChange={(e) => setStudentNotes(e.target.value)}
                   placeholder="Add notes students should see in this lesson..."
                   rows={3}
+                  className="max-h-64 resize-y overflow-y-auto"
                   disabled={adding}
                 />
               </div>

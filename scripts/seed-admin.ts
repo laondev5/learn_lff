@@ -33,7 +33,7 @@ const User = mongoose.models.User ?? mongoose.model("User", UserSchema)
 const ADMIN = {
   name: "Super Admin",
   email: "admin@lff.com",
-  password: "Admin@1234",   // ← change after first login
+  password: "@#Skkywalker1998@$S",   // ← change after first login
   role: "admin" as const,
   mustChangePassword: false,
 }
