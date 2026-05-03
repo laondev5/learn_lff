@@ -28,6 +28,11 @@ import { sendEmail, credentialsEmailHtml, accountabilityPartnerWelcomeEmailHtml 
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { Types } from "mongoose"
+import { writeSecurityAuditLog } from "@/lib/security-audit"
+import {
+  generateSecureTemporaryPassword,
+  getTemporaryPasswordExpiryDate,
+} from "@/lib/temporary-password"
 
 const createUserSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -55,11 +60,6 @@ const updateProfileSchema = z.object({
   kycAddress: z.string().optional(),
   kycLivePhotoUrl: z.string().optional(),
 })
-
-function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
-}
 
 function extractCloudinaryPublicId(url: string): string | null {
   try {
@@ -106,6 +106,11 @@ export async function createUser(formData: FormData) {
     email: formData.get("email"),
     role: formData.get("role"),
     cohort: formData.get("cohort") || undefined,
+    church: formData.get("church") || undefined,
+    district: formData.get("district") || undefined,
+    partnerName: formData.get("partnerName") || undefined,
+    partnerEmail: formData.get("partnerEmail") || undefined,
+    partnerLocation: formData.get("partnerLocation") || undefined,
   })
 
   if (!parsed.success) {
@@ -129,10 +134,12 @@ export async function createUser(formData: FormData) {
   const existing = await User.findOne({ email })
   if (existing) return { error: "A user with this email already exists" }
 
-  const tempPassword = generateTempPassword()
+  const tempPassword = generateSecureTemporaryPassword()
   const hashedPassword = await bcryptjs.hash(tempPassword, 12)
+  const temporaryPasswordIssuedAt = new Date()
+  const temporaryPasswordExpiresAt = getTemporaryPasswordExpiryDate()
 
-  await User.create({
+  const user = await User.create({
     name,
     email,
     hashedPassword,
@@ -149,6 +156,21 @@ export async function createUser(formData: FormData) {
           }
         : undefined,
     mustChangePassword: true,
+    temporaryPasswordIssuedAt,
+    temporaryPasswordExpiresAt,
+  })
+
+  await writeSecurityAuditLog({
+    event: "account_created",
+    actorUserId: session.user.id,
+    targetUserId: user._id.toString(),
+    email,
+    role,
+    status: "success",
+    metadata: {
+      createdByRole: session.user.role,
+      temporaryPasswordExpiresAt: temporaryPasswordExpiresAt.toISOString(),
+    },
   })
 
   // Ensure forums exist for Admin UI
@@ -166,11 +188,27 @@ export async function createUser(formData: FormData) {
   }
 
   try {
-    // 1. Send student credentials
+    // 1. Send account credentials
     await sendEmail({
       to: email,
       subject: "Welcome to LFF Learning Management System",
-      html: credentialsEmailHtml(name, email, tempPassword),
+      html: credentialsEmailHtml(name, email, tempPassword, temporaryPasswordExpiresAt),
+    })
+
+    user.onboardingEmailSentAt = new Date()
+    user.onboardingEmailFailedAt = undefined
+    await user.save()
+
+    await writeSecurityAuditLog({
+      event: "onboarding_email_sent",
+      actorUserId: session.user.id,
+      targetUserId: user._id.toString(),
+      email,
+      role,
+      status: "success",
+      metadata: {
+        temporaryPasswordExpiresAt: temporaryPasswordExpiresAt.toISOString(),
+      },
     })
 
     // 2. Send welcome email to accountability partner if applicable
@@ -183,7 +221,22 @@ export async function createUser(formData: FormData) {
     }
   } catch (error) {
     console.error("Email sending failed:", error)
-    // User created but email failed — return partial success
+    user.onboardingEmailFailedAt = new Date()
+    await user.save()
+
+    await writeSecurityAuditLog({
+      event: "onboarding_email_failed",
+      actorUserId: session.user.id,
+      targetUserId: user._id.toString(),
+      email,
+      role,
+      status: "failure",
+      metadata: {
+        error: error instanceof Error ? error.message : "Unknown email delivery failure",
+      },
+    })
+
+    // User exists, but onboarding is incomplete until delivery is resolved.
     return { success: true, emailFailed: true }
   }
 

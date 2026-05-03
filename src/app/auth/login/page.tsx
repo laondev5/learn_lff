@@ -35,6 +35,23 @@ export default function LoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true)
     try {
+      const preflightResponse = await fetch("/api/auth/preflight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      })
+
+      if (!preflightResponse.ok) {
+        const payload = await preflightResponse
+          .json()
+          .catch(() => ({ error: "Unable to validate your account at this time." }))
+        toast.error(payload.error || "Unable to validate your account at this time.")
+        return
+      }
+
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,

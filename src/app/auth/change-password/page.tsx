@@ -14,10 +14,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { changePassword } from "@/actions/auth.actions"
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from "@/lib/password-policy"
 
 const schema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  newPassword: z.string().refine((value) => isStrongPassword(value), {
+    message: PASSWORD_POLICY_MESSAGE,
+  }),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((d) => d.newPassword === d.confirmPassword, {
   message: "Passwords do not match",
@@ -30,7 +33,7 @@ export default function ChangePasswordPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
@@ -108,6 +111,9 @@ export default function ChangePasswordPage() {
               {errors.newPassword && (
                 <p className="text-xs text-destructive">{errors.newPassword.message}</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Use at least 8 characters with uppercase, lowercase, number, and special character.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>

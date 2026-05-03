@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
@@ -49,15 +49,15 @@ export function CreateUserDialog({ children }: CreateUserDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const {
+    control,
     register,
     handleSubmit,
     setValue,
-    watch,
     reset,
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) })
 
-  const role = watch("role")
+  const role = useWatch({ control, name: "role" })
 
   async function onSubmit(data: FormData) {
     setIsLoading(true)
@@ -77,7 +77,7 @@ export function CreateUserDialog({ children }: CreateUserDialogProps) {
     if (result.error) {
       toast.error(result.error)
     } else if (result.emailFailed) {
-      toast.success("User created, but the welcome email could not be sent.")
+      toast.error("User created, but the onboarding email could not be sent. Resolve email delivery before the user can complete onboarding.")
       setOpen(false)
       reset()
     } else {

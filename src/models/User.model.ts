@@ -37,6 +37,11 @@ export interface IUser extends Document {
   kycSubmittedAt?: Date
   isActive: boolean
   mustChangePassword: boolean
+  temporaryPasswordIssuedAt?: Date
+  temporaryPasswordExpiresAt?: Date
+  onboardingEmailSentAt?: Date
+  onboardingEmailFailedAt?: Date
+  passwordChangedAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -79,6 +84,11 @@ const UserSchema = new Schema<IUser>(
     kycSubmittedAt: { type: Date },
     isActive: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: true },
+    temporaryPasswordIssuedAt: { type: Date },
+    temporaryPasswordExpiresAt: { type: Date },
+    onboardingEmailSentAt: { type: Date },
+    onboardingEmailFailedAt: { type: Date },
+    passwordChangedAt: { type: Date },
   },
   { timestamps: true }
 )

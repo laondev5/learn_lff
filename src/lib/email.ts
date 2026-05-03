@@ -29,8 +29,11 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions) {
   })
 }
 
-export function credentialsEmailHtml(name: string, email: string, password: string) {
+export function credentialsEmailHtml(name: string, email: string, password: string, expiresAt?: Date) {
   const appUrl = getAppUrl()
+  const expiryNotice = expiresAt
+    ? `<p style="margin: 12px 0 0; color: #b45309;"><strong>Temporary password expires:</strong> ${expiresAt.toUTCString()}</p>`
+    : ""
 
   return `
     <!DOCTYPE html>
@@ -47,8 +50,10 @@ export function credentialsEmailHtml(name: string, email: string, password: stri
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 16px 0;">
             <p style="margin: 0;"><strong>Email:</strong> ${email}</p>
             <p style="margin: 8px 0 0;"><strong>Temporary Password:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${password}</code></p>
+            ${expiryNotice}
           </div>
           <p>Please <a href="${appUrl}/auth/login" style="color: #2563eb;">log in</a> and change your password immediately.</p>
+          <p>Your new password must contain at least 8 characters, including uppercase, lowercase, a number, and a special character.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #64748b; font-size: 13px; margin: 0;">This email was sent by LFF LMS. Please do not reply.</p>
         </div>

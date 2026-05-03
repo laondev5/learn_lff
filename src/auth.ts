@@ -1,8 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import bcryptjs from "bcryptjs"
-import { connectDB } from "@/lib/mongoose"
-import User from "@/models/User.model"
+import { validateUserCredentials } from "@/lib/auth-credentials"
+import { writeSecurityAuditLog } from "@/lib/security-audit"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -21,21 +20,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        await connectDB()
-
-        const user = await User.findOne({
-          email: String(credentials.email).toLowerCase(),
-          isActive: true,
-        })
-
-        if (!user) return null
-
-        const isValid = await bcryptjs.compare(
-          String(credentials.password),
-          user.hashedPassword
+        const validation = await validateUserCredentials(
+          String(credentials.email),
+          String(credentials.password)
         )
 
-        if (!isValid) return null
+        if (validation.status === "invalid") return null
+
+        if (validation.status === "temporary_password_expired") {
+          await writeSecurityAuditLog({
+            event: "temporary_password_login_blocked",
+            targetUserId: validation.user._id.toString(),
+            email: validation.user.email,
+            role: validation.user.role,
+            status: "blocked",
+            metadata: {
+              temporaryPasswordExpiresAt:
+                validation.user.temporaryPasswordExpiresAt?.toISOString(),
+            },
+          })
+          return null
+        }
+
+        const { user } = validation
 
         return {
           id: user._id.toString(),
