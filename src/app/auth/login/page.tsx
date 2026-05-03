@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { getSession, signIn } from "next-auth/react"
+import { signIn } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -23,7 +22,6 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
   const {
@@ -48,15 +46,8 @@ export default function LoginPage() {
         return
       }
 
-      const session = await getSession()
-
       toast.success("Welcome back!")
-      if (session?.user?.mustChangePassword) {
-        router.replace("/auth/change-password")
-      } else {
-        router.replace("/")
-      }
-      router.refresh()
+      window.location.assign("/auth/post-login")
     } catch {
       toast.error("Something went wrong. Please try again.")
     } finally {
