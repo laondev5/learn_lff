@@ -11,6 +11,10 @@ export default async function StudentLayout({ children }: { children: React.Reac
     redirect("/auth/login")
   }
 
+  if (session.user.mustChangePassword) {
+    redirect("/auth/change-password")
+  }
+
   await connectDB()
   const user = await User.findById(session.user.id).lean()
   const profileComplete = !!(

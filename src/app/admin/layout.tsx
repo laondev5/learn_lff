@@ -9,6 +9,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
+  if (session.user.mustChangePassword) {
+    redirect("/auth/change-password")
+  }
+
   return (
     <AdminLayoutClient
       user={{
