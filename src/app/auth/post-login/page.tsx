@@ -1,5 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
+import { getUserLandingPath } from "@/lib/auth-redirect"
 
 export default async function PostLoginPage() {
   const session = await auth()
@@ -8,17 +9,10 @@ export default async function PostLoginPage() {
     redirect("/auth/login")
   }
 
-  if (session.user.mustChangePassword) {
-    redirect("/auth/change-password")
-  }
-
-  if (session.user.role === "admin") {
-    redirect("/admin/dashboard")
-  }
-
-  if (session.user.role === "teacher") {
-    redirect("/teacher/dashboard")
-  }
-
-  redirect("/student/dashboard")
+  redirect(
+    getUserLandingPath({
+      role: session.user.role,
+      mustChangePassword: session.user.mustChangePassword,
+    })
+  )
 }

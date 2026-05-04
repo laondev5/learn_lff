@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateUserCredentials } from "@/lib/auth-credentials"
 import { writeSecurityAuditLog } from "@/lib/security-audit"
+import { getUserLandingPath } from "@/lib/auth-redirect"
 
 function getIpAddress(request: NextRequest) {
   return (
@@ -56,5 +57,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    redirectPath: getUserLandingPath({
+      role: validation.user.role,
+      mustChangePassword: validation.user.mustChangePassword,
+    }),
+  })
 }

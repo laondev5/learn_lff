@@ -59,6 +59,10 @@ export function LoginForm() {
         return
       }
 
+      const payload = (await preflightResponse.json().catch(() => null)) as
+        | { redirectPath?: string }
+        | null
+
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
@@ -71,7 +75,7 @@ export function LoginForm() {
       }
 
       toast.success("Welcome back!")
-      window.location.assign("/auth/post-login")
+      window.location.assign(payload?.redirectPath || "/")
     } catch {
       toast.error("Something went wrong. Please try again.")
     } finally {
