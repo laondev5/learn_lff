@@ -2,8 +2,10 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { validateUserCredentials } from "@/lib/auth-credentials"
 import { writeSecurityAuditLog } from "@/lib/security-audit"
+import { getAuthSecret } from "@/lib/auth-secret"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: getAuthSecret(),
   session: { strategy: "jwt" },
   trustHost: true,
   pages: {

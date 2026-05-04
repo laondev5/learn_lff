@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
+import { getAuthSecret } from "@/lib/auth-secret"
 
 const PUBLIC_ROUTES = ["/auth/login", "/auth/forgot-password", "/auth/change-password"]
 
@@ -28,7 +29,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  const token = await getToken({ req, secret: getAuthSecret() })
 
   if (!token) {
     return NextResponse.redirect(new URL("/auth/login", nextUrl))
