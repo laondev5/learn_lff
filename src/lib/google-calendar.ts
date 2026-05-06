@@ -1,14 +1,22 @@
 import { google } from "googleapis"
 import { connectDB } from "./mongoose"
 import User from "@/models/User.model"
+import { getAppUrl } from "@/lib/app-url"
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-)
+function getGoogleRedirectUri() {
+  return process.env.GOOGLE_REDIRECT_URI || `${getAppUrl()}/api/auth/callback/google`
+}
+
+function createGoogleOAuthClient() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    getGoogleRedirectUri()
+  )
+}
 
 export function getAuthUrl() {
+  const oauth2Client = createGoogleOAuthClient()
   const scopes = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/calendar.events",
@@ -22,6 +30,7 @@ export function getAuthUrl() {
 }
 
 export async function getTokensFromCode(code: string) {
+  const oauth2Client = createGoogleOAuthClient()
   const { tokens } = await oauth2Client.getToken(code)
   return tokens
 }
@@ -34,11 +43,7 @@ export async function getGoogleAuthClient(userId: string) {
     throw new Error("User not connected to Google Calendar")
   }
 
-  const client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  )
+  const client = createGoogleOAuthClient()
 
   client.setCredentials({
     access_token: user.googleAccessToken,
