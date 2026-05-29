@@ -99,6 +99,16 @@ export function ProfileForm({ current }: ProfileFormProps) {
     }
   }, [])
 
+  // Attach the stream to the video element once it mounts (cameraOpen → true triggers re-render first)
+  useEffect(() => {
+    if (!cameraOpen || !streamRef.current || !videoRef.current) return
+    const video = videoRef.current
+    video.srcObject = streamRef.current
+    video.play().catch(() => {
+      setCameraError("Could not start video playback. Please try again.")
+    })
+  }, [cameraOpen])
+
   async function startCamera() {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setCameraError("Camera is not supported on this device or browser.")
@@ -116,12 +126,9 @@ export function ProfileForm({ current }: ProfileFormProps) {
       })
 
       streamRef.current = stream
+      // Setting cameraOpen renders the <video> element; the useEffect above then
+      // attaches the stream once the element is in the DOM.
       setCameraOpen(true)
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
     } catch {
       setCameraError("Unable to access your camera. Please allow camera permission and try again.")
     } finally {
@@ -160,8 +167,8 @@ export function ProfileForm({ current }: ProfileFormProps) {
 
   async function capturePhoto() {
     const video = videoRef.current
-    if (!video || !video.videoWidth || !video.videoHeight) {
-      toast.error("Camera is not ready yet. Please try again.")
+    if (!video || !streamRef.current || video.readyState < 2) {
+      toast.error("Camera is still loading. Please wait a moment and try again.")
       return
     }
 

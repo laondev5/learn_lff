@@ -93,10 +93,13 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
   const [savingCues, setSavingCues] = useState(false)
 
   // --- Video upload state ---
-  const MAX_VIDEO_MB = 1024
+  const MAX_VIDEO_INPUT_MB = 500
+  const COMPRESS_THRESHOLD_MB = 100
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [compressing, setCompressing] = useState(false)
+  const [compressionProgress, setCompressionProgress] = useState(0)
   const [currentVideoUrl, setCurrentVideoUrl] = useState(lesson.videoUrl ?? "")
   const [pasteUrlInput, setPasteUrlInput] = useState("")
   const [savingUrl, setSavingUrl] = useState(false)
@@ -197,26 +200,53 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setSavingCues(false)
   }
 
+  // --- Video file selection with auto-compression ---
+  async function handleVideoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null
+    if (!f) { setUploadFile(null); return }
+
+    if (f.size > MAX_VIDEO_INPUT_MB * 1024 * 1024) {
+      toast.error(`File is ${(f.size / 1024 / 1024).toFixed(1)} MB — exceeds the ${MAX_VIDEO_INPUT_MB} MB limit.`)
+      e.target.value = ""
+      return
+    }
+
+    setUploadProgress(0)
+
+    if (f.size >= COMPRESS_THRESHOLD_MB * 1024 * 1024) {
+      setCompressing(true)
+      setCompressionProgress(0)
+      toast.info("Video is over 100 MB — compressing before upload…")
+      try {
+        const { compressVideoIfNeeded } = await import("@/lib/compress-video")
+        const compressed = await compressVideoIfNeeded(f, setCompressionProgress)
+        setUploadFile(compressed)
+        setCompressionProgress(100)
+        toast.success(`Compressed to ${(compressed.size / 1024 / 1024).toFixed(1)} MB — ready to upload`)
+      } catch (err) {
+        toast.error("Compression failed: " + (err instanceof Error ? err.message : "Unknown error"))
+        e.target.value = ""
+        setUploadFile(null)
+      } finally {
+        setCompressing(false)
+      }
+    } else {
+      setUploadFile(f)
+    }
+  }
+
   // --- Cloudinary chunked upload ---
   async function handleUploadVideo() {
     if (!uploadFile) return
-
-    if (uploadFile.size > MAX_VIDEO_MB * 1024 * 1024) {
-      toast.error(
-        `File is ${(uploadFile.size / 1024 / 1024).toFixed(1)} MB — exceeds the ${MAX_VIDEO_MB} MB limit. Please compress or shorten the video.`
-      )
-      return
-    }
 
     setUploading(true)
     setUploadProgress(0)
 
     try {
-      const needsCompression = uploadFile.size > 100 * 1024 * 1024
-      const signRes = await fetch(`/api/video/sign?compress=${needsCompression}`)
+      const signRes = await fetch("/api/video/sign")
       if (!signRes.ok) throw new Error("Failed to get upload credentials")
-      const { cloudName, apiKey, timestamp, signature, folder, eager, eagerAsync } = await signRes.json() as {
-        cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string; eager?: string; eagerAsync?: boolean
+      const { cloudName, apiKey, timestamp, signature, folder } = await signRes.json() as {
+        cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string
       }
 
       const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB per chunk
@@ -237,8 +267,6 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
           fd.append("timestamp", String(timestamp))
           fd.append("signature", signature)
           fd.append("folder", folder)
-          if (eager) fd.append("eager", eager)
-          if (eagerAsync) fd.append("eager_async", String(eagerAsync))
 
           const xhr = new XMLHttpRequest()
           xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`)
@@ -445,33 +473,41 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Upload a video file — it will be stored in Cloudinary and saved automatically.
-                  Max size: <span className="font-medium">{MAX_VIDEO_MB} MB</span>.
+                  Max size: <span className="font-medium">{MAX_VIDEO_INPUT_MB} MB</span> (auto-compressed if over 100 MB).
                 </p>
                 <div className="space-y-2">
                   <Label>Select Video File</Label>
                   <Input
                     type="file"
                     accept="video/mp4,video/mpeg,video/quicktime,video/x-msvideo,video/webm"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null
-                      if (f && f.size > MAX_VIDEO_MB * 1024 * 1024) {
-                        toast.error(
-                          `File is ${(f.size / 1024 / 1024).toFixed(1)} MB — exceeds the ${MAX_VIDEO_MB} MB limit.`
-                        )
-                        e.target.value = ""
-                        return
-                      }
-                      setUploadFile(f)
-                    }}
-                    disabled={uploading}
+                    onChange={handleVideoFileChange}
+                    disabled={uploading || compressing}
                   />
-                  <p className="text-xs text-muted-foreground">Supported: MP4, MOV, AVI, WebM. Max {MAX_VIDEO_MB} MB.</p>
+                  <p className="text-xs text-muted-foreground">Supported: MP4, MOV, AVI, WebM. Max {MAX_VIDEO_INPUT_MB} MB.</p>
                 </div>
 
-                {uploadFile && !uploading && (
+                {uploadFile && !uploading && !compressing && (
                   <p className="text-sm text-muted-foreground">
                     Selected: <span className="font-medium">{uploadFile.name}</span> ({(uploadFile.size / 1024 / 1024).toFixed(1)} MB)
                   </p>
+                )}
+
+                {compressing && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Compressing…
+                      </span>
+                      <span>{compressionProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 transition-all duration-300 rounded-full"
+                        style={{ width: `${compressionProgress}%` }}
+                      />
+                    </div>
+                  </div>
                 )}
 
                 {uploading && (
@@ -491,11 +527,13 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
 
                 <Button
                   onClick={handleUploadVideo}
-                  disabled={!uploadFile || uploading}
+                  disabled={!uploadFile || uploading || compressing}
                   className="w-full sm:w-auto"
                 >
                   {uploading ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading… {uploadProgress}%</>
+                  ) : compressing ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Compressing…</>
                   ) : (
                     <><Upload className="mr-2 h-4 w-4" />Upload Video</>
                   )}

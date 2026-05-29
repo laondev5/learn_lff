@@ -24,8 +24,9 @@ import {
   createLesson, toggleLessonPublished, deleteLesson,
 } from "@/actions/course.actions"
 
-const MAX_VIDEO_SIZE = 300 * 1024 * 1024 // 300 MB
-const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB
+const MAX_VIDEO_INPUT_SIZE = 500 * 1024 * 1024 // 500 MB max before compression
+const COMPRESS_THRESHOLD = 100 * 1024 * 1024 // auto-compress anything ≥ 100 MB
+const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB per upload chunk
 
 async function uploadToCloudinary(
   file: File,
@@ -71,7 +72,12 @@ async function uploadToCloudinary(
           onProgress(Math.round(((i + 1) / totalChunks) * 100))
           resolve()
         } else {
-          reject(new Error(`Upload failed: ${xhr.statusText}`))
+          try {
+            const errData = JSON.parse(xhr.responseText)
+            reject(new Error(errData?.error?.message ?? `Upload failed (${xhr.status})`))
+          } catch {
+            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`))
+          }
         }
       }
       xhr.onerror = () => reject(new Error("Network error during upload"))
@@ -111,19 +117,43 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploading, setUploading] = useState(false)
+  const [compressing, setCompressing] = useState(false)
+  const [compressionProgress, setCompressionProgress] = useState(0)
   const [adding, setAdding] = useState(false)
   const fileInputId = "add-lesson-video-file"
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > MAX_VIDEO_SIZE) {
-      toast.error("Video exceeds 300 MB limit. Please compress or trim it first.")
+
+    if (file.size > MAX_VIDEO_INPUT_SIZE) {
+      toast.error("Video exceeds 500 MB. Please trim it before uploading.")
       e.target.value = ""
       return
     }
-    setVideoFile(file)
+
     setUploadProgress(0)
+
+    if (file.size >= COMPRESS_THRESHOLD) {
+      setCompressing(true)
+      setCompressionProgress(0)
+      toast.info("Video is over 100 MB — compressing before upload…")
+      try {
+        const { compressVideoIfNeeded } = await import("@/lib/compress-video")
+        const compressed = await compressVideoIfNeeded(file, setCompressionProgress)
+        setVideoFile(compressed)
+        setCompressionProgress(100)
+        toast.success(`Compressed to ${(compressed.size / 1024 / 1024).toFixed(1)} MB — ready to upload`)
+      } catch (err) {
+        toast.error("Compression failed: " + (err instanceof Error ? err.message : "Unknown error"))
+        e.target.value = ""
+        setVideoFile(null)
+      } finally {
+        setCompressing(false)
+      }
+    } else {
+      setVideoFile(file)
+    }
   }
 
   async function handleAddLesson(e: React.FormEvent) {
@@ -267,7 +297,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                   <Label>Video File</Label>
                   <label
                     htmlFor={fileInputId}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border p-6 text-center transition-colors ${uploading || adding ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"}`}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border p-6 text-center transition-colors ${uploading || adding || compressing ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"}`}
                   >
                     <Upload className="h-6 w-6 text-muted-foreground" />
                     {videoFile ? (
@@ -275,7 +305,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                     ) : (
                       <p className="text-sm text-muted-foreground">Click to select a video file</p>
                     )}
-                    <p className="text-xs text-muted-foreground">MP4, MOV, AVI — max 100 MB</p>
+                    <p className="text-xs text-muted-foreground">MP4, MOV, AVI — max 500 MB (auto-compressed if over 100 MB)</p>
                   </label>
                   <input
                     id={fileInputId}
@@ -283,8 +313,25 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                     accept="video/*"
                     className="sr-only"
                     onChange={handleFileChange}
-                    disabled={uploading || adding}
+                    disabled={uploading || adding || compressing}
                   />
+                  {compressing && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Compressing…
+                        </span>
+                        <span>{compressionProgress}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 transition-all duration-300 rounded-full"
+                          style={{ width: `${compressionProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   {uploading && (
                     <div className="space-y-1">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -307,16 +354,18 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
                   variant="outline"
                   className="flex-1"
                   onClick={() => setAddOpen(false)}
-                  disabled={uploading || adding}
+                  disabled={uploading || adding || compressing}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={uploading || adding || !title.trim()}
+                  disabled={uploading || adding || compressing || !title.trim()}
                 >
-                  {uploading ? (
+                  {compressing ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" />Compressing…</>
+                  ) : uploading ? (
                     <><Loader2 className="h-4 w-4 animate-spin mr-2" />Uploading…</>
                   ) : adding ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
