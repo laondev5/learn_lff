@@ -70,8 +70,11 @@ export async function compressVideoIfNeeded(
   const data = await ffmpeg.readFile(outputName)
   ffmpeg.terminate()
 
+  // new Uint8Array(typedArray) copies the data into a fresh ArrayBuffer,
+  // satisfying TypeScript's strict BufferSource / File constructor types.
+  const bytes = new Uint8Array(data as Uint8Array)
   return new File(
-    [data as Uint8Array],
+    [bytes],
     file.name.replace(/\.[^/.]+$/, "_compressed.mp4"),
     { type: "video/mp4" }
   )
