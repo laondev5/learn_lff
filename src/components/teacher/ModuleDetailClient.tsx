@@ -24,7 +24,7 @@ import {
   createLesson, toggleLessonPublished, deleteLesson,
 } from "@/actions/course.actions"
 
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100 MB
+const MAX_VIDEO_SIZE = 300 * 1024 * 1024 // 300 MB
 const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB
 
 async function uploadToCloudinary(
@@ -118,7 +118,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > MAX_VIDEO_SIZE) {
-      toast.error("Video exceeds 100 MB limit. Please compress or trim it first.")
+      toast.error("Video exceeds 300 MB limit. Please compress or trim it first.")
       e.target.value = ""
       return
     }
