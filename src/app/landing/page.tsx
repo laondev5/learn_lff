@@ -3,6 +3,28 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
+import {
+  ArrowRight,
+  BookOpen,
+  ChartColumn,
+  Church,
+  CircleCheck,
+  Globe,
+  GraduationCap,
+  Handshake,
+  LockKeyhole,
+  Mail,
+  MessageCircle,
+  Phone,
+  Play,
+  Rocket,
+  ScrollText,
+  Sparkles,
+  Star,
+  Trophy,
+  Users,
+  Video,
+} from "lucide-react"
 
 // ── animated counter ──────────────────────────────────────────────────────
 function Counter({
@@ -50,7 +72,8 @@ function Counter({
 
 const features = [
   {
-    icon: "🎓",
+    icon: GraduationCap,
+    iconColor: "text-green-700",
     title: "Structured Courses",
     desc: "Professionally designed biblical and leadership courses organised into modules and lessons that fit every schedule.",
     gradient: "from-green-500/20 to-emerald-500/10",
@@ -58,7 +81,8 @@ const features = [
     iconBg: "bg-green-100",
   },
   {
-    icon: "📹",
+    icon: Video,
+    iconColor: "text-orange-600",
     title: "Live Classes",
     desc: "Join real-time Google Meet sessions scheduled by your instructors and stay engaged with interactive learning.",
     gradient: "from-orange-500/20 to-amber-500/10",
@@ -66,7 +90,8 @@ const features = [
     iconBg: "bg-orange-100",
   },
   {
-    icon: "📜",
+    icon: ScrollText,
+    iconColor: "text-red-600",
     title: "Certificates",
     desc: "Earn verifiable certificates upon completing courses — recognition for your spiritual and academic growth.",
     gradient: "from-red-500/20 to-rose-500/10",
@@ -74,7 +99,8 @@ const features = [
     iconBg: "bg-red-100",
   },
   {
-    icon: "📊",
+    icon: ChartColumn,
+    iconColor: "text-teal-700",
     title: "Progress Tracking",
     desc: "Visualise your journey with dashboards that show completion rates, exam scores, and momentum at a glance.",
     gradient: "from-green-600/20 to-teal-500/10",
@@ -82,7 +108,8 @@ const features = [
     iconBg: "bg-teal-100",
   },
   {
-    icon: "💬",
+    icon: MessageCircle,
+    iconColor: "text-amber-600",
     title: "Community Forums",
     desc: "Engage in topic-driven discussions with fellow learners and instructors to deepen understanding together.",
     gradient: "from-amber-500/20 to-yellow-400/10",
@@ -90,7 +117,8 @@ const features = [
     iconBg: "bg-amber-100",
   },
   {
-    icon: "🤝",
+    icon: Handshake,
+    iconColor: "text-pink-600",
     title: "Accountability Partners",
     desc: "Stay on track with a dedicated accountability partner who receives progress updates and encourages you.",
     gradient: "from-red-600/20 to-pink-500/10",
@@ -107,7 +135,7 @@ const roles = [
     gradient: "from-green-600 to-emerald-500",
     gradientStr: "#006633,#00843D",
     link: "/auth/login",
-    cta: "Start Learning",
+    cta: "Get Started",
     svgPath: "/Students-cuate.svg",
   },
   {
@@ -117,7 +145,7 @@ const roles = [
     gradient: "from-orange-500 to-amber-400",
     gradientStr: "#F97316,#FB923C",
     link: "/auth/login",
-    cta: "Start Teaching",
+    cta: "Get Started",
     svgPath: "/Teacher student-pana.svg",
   },
   {
@@ -127,7 +155,7 @@ const roles = [
     gradient: "from-red-600 to-rose-500",
     gradientStr: "#CC0000,#DC2626",
     link: "/auth/login",
-    cta: "Go to Admin",
+    cta: "Get Started",
     svgPath: "/Admin-pana.svg",
   },
 ]
@@ -384,13 +412,13 @@ export default function LandingPage() {
                 The Living Faith Foundation Learning Management System  where biblical education meets modern technology.
               </p>
               <div className="flex flex-wrap gap-3 mb-10">
-                {[{ i: "✅", t: "Structured Bible Courses" }, { i: "📹", t: "Live Google Meet Classes" }, { i: "🏆", t: "Earn Certificates" }].map((p) => (
-                  <span key={p.t} className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-full px-4 py-2 shadow-sm">{p.i} {p.t}</span>
+                {[{ Icon: CircleCheck, t: "Structured Bible Courses" }, { Icon: Video, t: "Live Google Meet Classes" }, { Icon: Trophy, t: "Earn Certificates" }].map((p) => (
+                  <span key={p.t} className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-full px-4 py-2 shadow-sm"><p.Icon className="w-4 h-4" style={{ color: "#006633" }} /> {p.t}</span>
                 ))}
               </div>
               <div className="flex flex-wrap gap-4 items-center">
-                <Link href="/auth/login" className="lff-btn-primary">Start Learning Now →</Link>
-                <a href="#features" className="lff-btn-secondary">▶ Explore Features</a>
+                <Link href="/auth/login" className="lff-btn-primary">Start Learning Now <ArrowRight className="w-4 h-4" /></Link>
+                <a href="#features" className="lff-btn-secondary"><Play className="w-4 h-4" /> Explore Features</a>
               </div>
               <div className="mt-10 flex items-center gap-4">
                 <div className="flex -space-x-3">
@@ -401,7 +429,7 @@ export default function LandingPage() {
                 <div>
                   <div className="text-sm font-semibold text-gray-800">1,200+ Members</div>
                   <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map(s => <span key={s} className="text-amber-400 text-sm">★</span>)}
+                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />)}
                     <span className="text-xs text-gray-500 ml-1">across all cohorts</span>
                   </div>
                 </div>
@@ -423,11 +451,11 @@ export default function LandingPage() {
               </div>
               {/* Floating badges */}
               <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl p-3 flex items-center gap-2 lff-float-slow" style={{ border: "2px solid rgba(0,102,51,0.15)" }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#006633" }}>🎓</div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#006633" }}><GraduationCap className="w-4 h-4" /></div>
                 <div><div className="text-xs font-bold text-gray-800">Structured Bible Courses</div><div className="text-xs text-gray-500"></div></div>
               </div>
               <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-3 flex items-center gap-2 lff-float-mid" style={{ border: "2px solid rgba(249,115,22,0.2)" }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#F97316" }}>📜</div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#F97316" }}><ScrollText className="w-4 h-4" /></div>
                 <div><div className="text-xs font-bold text-gray-800">Earn Certificates</div><div className="text-xs text-gray-500">After Completion</div></div>
               </div>
             </div>
@@ -461,7 +489,7 @@ export default function LandingPage() {
       <section id="features" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="lff-section-tag">🌟 Platform Features</div>
+            <div className="lff-section-tag"><Sparkles className="w-3.5 h-3.5" /> Platform Features</div>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4" style={{ fontFamily: "var(--font-montserrat, sans-serif)" }}>
               Everything You Need to <span style={{ color: "#006633" }}>Learn &amp; Thrive</span>
             </h2>
@@ -471,7 +499,7 @@ export default function LandingPage() {
             {features.map((f, i) => (
               <div key={i} className={`lff-card relative rounded-3xl p-8 bg-gradient-to-br ${f.gradient} border ${f.border} overflow-hidden`}>
                 <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-10 bg-current" />
-                <div className={`w-14 h-14 rounded-2xl ${f.iconBg} flex items-center justify-center text-2xl mb-5 shadow-sm`}>{f.icon}</div>
+                <div className={`w-14 h-14 rounded-2xl ${f.iconBg} flex items-center justify-center mb-5 shadow-sm`}><f.icon className={`w-7 h-7 ${f.iconColor}`} /></div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">{f.title}</h3>
                 <p className="text-gray-600 leading-relaxed text-sm">{f.desc}</p>
               </div>
@@ -484,20 +512,20 @@ export default function LandingPage() {
       <section id="how-it-works" className="py-24 relative overflow-hidden" style={{ background: "linear-gradient(135deg,rgba(0,102,51,0.04) 0%,rgba(249,115,22,0.04) 50%,rgba(204,0,0,0.03) 100%)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="lff-section-tag">🚀 Getting Started</div>
+            <div className="lff-section-tag"><Rocket className="w-3.5 h-3.5" /> Getting Started</div>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4" style={{ fontFamily: "var(--font-montserrat, sans-serif)" }}>
               Three Simple Steps to <span style={{ color: "#F97316" }}>Begin Your Journey</span>
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-10">
             {[
-              { step: "01", icon: "🔐", title: "Sign In", desc: "Use your church-issued credentials to log in securely and access your personalised dashboard.", color: "#006633", bg: "bg-green-50" },
-              { step: "02", icon: "📚", title: "Enroll in Courses", desc: "Browse available courses, join cohorts, and start learning at your own pace with structured content.", color: "#F97316", bg: "bg-orange-50" },
-              { step: "03", icon: "🏆", title: "Grow & Certify", desc: "Complete lessons, pass exams, join live classes, and earn verifiable certificates for your achievement.", color: "#CC0000", bg: "bg-red-50" },
+              { step: "01", Icon: LockKeyhole, title: "Sign In", desc: "Use your church-issued credentials to log in securely and access your personalised dashboard.", color: "#006633", bg: "bg-green-50" },
+              { step: "02", Icon: BookOpen, title: "Enroll in Courses", desc: "Browse available courses, join cohorts, and start learning at your own pace with structured content.", color: "#F97316", bg: "bg-orange-50" },
+              { step: "03", Icon: Trophy, title: "Grow & Certify", desc: "Complete lessons, pass exams, join live classes, and earn verifiable certificates for your achievement.", color: "#CC0000", bg: "bg-red-50" },
             ].map((s, i) => (
               <div key={i} className="text-center lff-card">
-                <div className={`relative w-20 h-20 mx-auto rounded-3xl ${s.bg} flex items-center justify-center text-3xl mb-6 shadow-lg`} style={{ border: `2px solid ${s.color}30` }}>
-                  <span>{s.icon}</span>
+                <div className={`relative w-20 h-20 mx-auto rounded-3xl ${s.bg} flex items-center justify-center mb-6 shadow-lg`} style={{ border: `2px solid ${s.color}30` }}>
+                  <s.Icon className="w-9 h-9" style={{ color: s.color }} />
                   <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full text-white text-xs font-bold flex items-center justify-center shadow" style={{ background: s.color }}>{s.step}</div>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">{s.title}</h3>
@@ -512,7 +540,7 @@ export default function LandingPage() {
       <section id="roles" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="lff-section-tag">👥 Built For Everyone</div>
+            <div className="lff-section-tag"><Users className="w-3.5 h-3.5" /> Built For Everyone</div>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4" style={{ fontFamily: "var(--font-montserrat, sans-serif)" }}>
               A Platform for <span style={{ color: "#006633" }}>Every Role</span>
             </h2>
@@ -533,7 +561,7 @@ export default function LandingPage() {
                   <h3 className="text-xl font-bold text-gray-900 mb-3">{r.title}</h3>
                   <p className="text-gray-500 text-sm leading-relaxed flex-1" dangerouslySetInnerHTML={{ __html: r.desc }} />
                   <div className="mt-6">
-                    <Link href={r.link} className="block w-full text-center py-3 rounded-2xl font-bold text-white transition-all hover:opacity-90 hover:shadow-lg text-sm" style={{ background: `linear-gradient(135deg,${r.gradientStr})` }}>{r.cta} →</Link>
+                    <Link href={r.link} className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl font-bold text-white transition-all hover:opacity-90 hover:shadow-lg text-sm" style={{ background: `linear-gradient(135deg,${r.gradientStr})` }}>{r.cta} <ArrowRight className="w-4 h-4" /></Link>
                   </div>
                 </div>
               </div>
@@ -546,7 +574,7 @@ export default function LandingPage() {
       {/* <section id="testimonials" className="py-24" style={{ background: "linear-gradient(180deg,#f0fdf4 0%,#fff7ed 50%,#fef2f2 100%)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="lff-section-tag">💬 Community Stories</div>
+            <div className="lff-section-tag"><MessageCircle className="w-3.5 h-3.5" /> Community Stories</div>
             <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 mb-4" style={{ fontFamily: "var(--font-montserrat, sans-serif)" }}>
               Voices from the <span style={{ color: "#006633" }}>LFF Community</span>
             </h2>
@@ -555,7 +583,7 @@ export default function LandingPage() {
             {testimonials.map((t, i) => (
               <div key={i} className="lff-card bg-white rounded-3xl p-8 shadow-md relative overflow-hidden" style={{ border: "1px solid rgba(0,102,51,0.08)" }}>
                 <div className="absolute -top-4 -left-2 text-8xl font-serif opacity-10 select-none" style={{ color: "#006633" }}>&ldquo;</div>
-                <div className="flex text-amber-400 text-sm mb-4">{[1, 2, 3, 4, 5].map(s => <span key={s}>★</span>)}</div>
+                <div className="flex text-amber-400 text-sm mb-4">{[1, 2, 3, 4, 5].map(s => <Star key={s} className="w-4 h-4 fill-amber-400" />)}</div>
                 <p className="text-gray-700 text-sm leading-relaxed mb-6 relative z-10">&ldquo;{t.quote}&rdquo;</p>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: t.color }}>{t.initials}</div>
@@ -585,7 +613,7 @@ export default function LandingPage() {
             Join thousands of Living Faith Foundation members growing spiritually and academically through our world-class Learning Management System.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link href="/auth/login" className="inline-flex items-center gap-2 text-base font-bold py-4 px-10 rounded-full transition-all hover:scale-105 hover:shadow-2xl" style={{ background: "linear-gradient(135deg,#F97316,#FFA500)", color: "white" }}>Access the Platform →</Link>
+            <Link href="/auth/login" className="inline-flex items-center gap-2 text-base font-bold py-4 px-10 rounded-full transition-all hover:scale-105 hover:shadow-2xl" style={{ background: "linear-gradient(135deg,#F97316,#FFA500)", color: "white" }}>Access the Platform <ArrowRight className="w-5 h-5" /></Link>
             <a href="#features" className="inline-flex items-center gap-2 text-base font-bold py-4 px-10 rounded-full text-white hover:bg-white/10 transition-all" style={{ border: "2px solid rgba(255,255,255,0.3)" }}>Learn More</a>
           </div>
         </div>
@@ -608,7 +636,7 @@ export default function LandingPage() {
             <div>
               <div className="text-white font-semibold mb-4">Platform</div>
               <ul className="space-y-2 text-sm text-gray-400">
-                {["Student Login", "Teacher Login", "Admin Login", "Courses", "Certificates"].map(l => (
+                {["Login", "Get Started", "Courses", "Certificates"].map(l => (
                   <li key={l}><Link href="/auth/login" className="hover:text-green-400 transition-colors">{l}</Link></li>
                 ))}
               </ul>
@@ -616,10 +644,10 @@ export default function LandingPage() {
             <div>
               <div className="text-white font-semibold mb-4">Connect</div>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li>🌍 Living Faith Foundation</li>
-                <li>⛪ Church &amp; Missions</li>
-                <li>📧 support@lff.org</li>
-                <li>📞 Available via platform</li>
+                <li className="flex items-center gap-2"><Globe className="w-4 h-4 shrink-0" /> Living Faith Foundation</li>
+                <li className="flex items-center gap-2"><Church className="w-4 h-4 shrink-0" /> Church &amp; Missions</li>
+                <li className="flex items-center gap-2"><Mail className="w-4 h-4 shrink-0" /> support@lff.org</li>
+                <li className="flex items-center gap-2"><Phone className="w-4 h-4 shrink-0" /> Available via platform</li>
               </ul>
             </div>
           </div>
