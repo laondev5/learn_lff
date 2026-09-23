@@ -35,7 +35,7 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
     try {
       await signOut({ redirect: false })
       toast.dismiss(toastId)
-      router.replace("/auth/login")
+      router.replace("/")
       router.refresh()
     } catch {
       toast.dismiss(toastId)

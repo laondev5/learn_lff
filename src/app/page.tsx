@@ -1,11 +1,14 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 
+import LandingPage from "./landing/page"
+
 export default async function HomePage() {
   const session = await auth()
 
+  // Unauthenticated visitors see the landing page
   if (!session?.user) {
-    redirect("/auth/login")
+    return <LandingPage />
   }
 
   if (session.user.mustChangePassword) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getUserLandingPath } from "@/lib/auth-redirect"
 
-const PUBLIC_ROUTES = ["/auth/login", "/auth/forgot-password", "/auth/change-password"]
+const PUBLIC_ROUTES = ["/", "/landing", "/auth/login", "/auth/forgot-password", "/auth/change-password"]
 
 const ROLE_ROUTES: Record<string, string[]> = {
   admin: ["/admin"],
@@ -15,7 +15,7 @@ export const proxy = auth((req) => {
   const pathname = nextUrl.pathname
 
   const isChangePassword = pathname.startsWith("/auth/change-password")
-  const isPublicRoute = PUBLIC_ROUTES.some((r) => pathname.startsWith(r))
+  const isPublicRoute = pathname === "/" || pathname === "/landing" || PUBLIC_ROUTES.some((r) => r !== "/" && pathname.startsWith(r))
 
   // Allow unauthenticated access to public routes (except change-password needs auth)
   if (isPublicRoute && !isChangePassword) {
