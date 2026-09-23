@@ -25,7 +25,7 @@ export function TeacherLayoutClient({ user, profileComplete, children }: Teacher
   const showAlert = !profileComplete && !alertDismissed
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[linear-gradient(180deg,rgba(241,250,255,0.78),rgba(255,255,255,0.94))]">
       <div className="hidden lg:flex lg:shrink-0">
         <TeacherSidebar />
       </div>
@@ -36,7 +36,7 @@ export function TeacherLayoutClient({ user, profileComplete, children }: Teacher
         </SheetContent>
       </Sheet>
 
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader user={user} onMenuClick={() => setSidebarOpen(true)} />
 
         {showAlert && (

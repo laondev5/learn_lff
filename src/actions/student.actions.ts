@@ -51,23 +51,32 @@ export async function getEnrolledCourses() {
     .populate("course")
     .lean()
 
-  return progresses.map((p) => {
-    const course = p.course as unknown as {
-      _id: Types.ObjectId
-      title: string
-      description: string
-      isPublished: boolean
+  return progresses.flatMap((p) => {
+    const course = p.course as unknown as
+      | {
+          _id: Types.ObjectId
+          title: string
+          description: string
+          isPublished: boolean
+        }
+      | null
+
+    if (!course?._id) {
+      return []
     }
-    return {
-      courseId: course._id.toString(),
-      title: course.title,
-      description: course.description,
-      isPublished: course.isPublished,
-      completedLessons: p.completedLessons.length,
-      examPassed: p.examPassed,
-      certificateIssued: p.certificateIssued,
-      enrolledAt: p.enrolledAt.toISOString(),
-    }
+
+    return [
+      {
+        courseId: course._id.toString(),
+        title: course.title,
+        description: course.description,
+        isPublished: course.isPublished,
+        completedLessons: p.completedLessons.length,
+        examPassed: p.examPassed,
+        certificateIssued: p.certificateIssued,
+        enrolledAt: p.enrolledAt.toISOString(),
+      },
+    ]
   })
 }
 

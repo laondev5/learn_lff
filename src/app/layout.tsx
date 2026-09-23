@@ -1,12 +1,18 @@
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
+import { Montserrat, Poppins } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "sonner"
-import { ThemeProvider } from "@/components/shared/ThemeProvider"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+})
+
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
 })
 
 export const metadata: Metadata = {
@@ -18,17 +24,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full`} suppressHydrationWarning>
-      <body className="min-h-full antialiased bg-background text-foreground" suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
+    <html
+      lang="en"
+      className={`${poppins.variable} ${montserrat.variable} h-full`}
+    >
+      <body className="min-h-full bg-background font-sans antialiased text-foreground">
+        {children}
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   )

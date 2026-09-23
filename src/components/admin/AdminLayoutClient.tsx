@@ -19,7 +19,7 @@ export function AdminLayoutClient({ user, children }: AdminLayoutClientProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[linear-gradient(180deg,rgba(248,245,255,0.7),rgba(255,255,255,0.92))]">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:shrink-0">
         <AdminSidebar />
@@ -33,7 +33,7 @@ export function AdminLayoutClient({ user, children }: AdminLayoutClientProps) {
       </Sheet>
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader user={user} onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           {children}

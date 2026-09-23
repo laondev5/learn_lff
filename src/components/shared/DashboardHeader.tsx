@@ -6,7 +6,6 @@ import { toast } from "sonner"
 import { LogOut, Menu, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/shared/UserAvatar"
-import { ThemeToggle } from "@/components/shared/ThemeToggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +44,7 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center border-b bg-background px-4 gap-3">
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-3 border-b border-primary/10 bg-background/90 px-4 backdrop-blur md:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -63,10 +62,8 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
 
       <div className="flex-1" />
 
-      <ThemeToggle />
-
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+        <DropdownMenuTrigger className="flex h-10 items-center gap-2 rounded-xl border border-primary/10 bg-white/70 px-2 shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
           <UserAvatar name={user.name} imageUrl={user.imageUrl} size="sm" />
           <div className="hidden sm:flex flex-col items-start text-left">
             <span className="text-sm font-medium leading-none">{user.name}</span>
