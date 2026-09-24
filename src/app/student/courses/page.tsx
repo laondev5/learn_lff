@@ -1,24 +1,26 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { getEnrolledCourses } from "@/actions/student.actions"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Award, BookOpen, ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { BookOpen } from "lucide-react"
+import { getEnrolledCourses } from "@/actions/student.actions"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { LearningCourseCard } from "@/components/student/CourseCards"
 
 export default async function StudentCoursesPage() {
   const session = await auth()
   if (!session?.user || session.user.role !== "student") redirect("/auth/login")
 
   const enrolled = await getEnrolledCourses()
+  const inProgress = enrolled.filter((c) => !c.examPassed && c.progressPercent < 100)
+  const completed = enrolled.filter((c) => c.examPassed || c.progressPercent >= 100)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Courses</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          All courses you are currently enrolled in
+    <div className="space-y-8">
+      <div className="-mx-4 -mt-4 bg-gray-900 px-4 pb-6 pt-8 text-white md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8">
+        <h1 className="text-3xl font-extrabold">My learning</h1>
+        <p className="mt-1 text-sm text-gray-300">
+          {enrolled.length} course{enrolled.length !== 1 ? "s" : ""} · {completed.length} completed
         </p>
       </div>
 
@@ -27,46 +29,35 @@ export default async function StudentCoursesPage() {
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
             <BookOpen className="h-12 w-12 text-muted-foreground opacity-40" />
             <div className="text-center">
-              <p className="font-medium">No courses yet</p>
+              <p className="font-medium">Start learning today</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Go to your dashboard to enrol in available courses.
+                When you enroll in a course, it will appear here.
               </p>
             </div>
-            <Button asChild variant="outline">
-              <Link href="/student/dashboard">Browse Courses</Link>
+            <Button asChild>
+              <Link href="/student/dashboard#available">Browse courses</Link>
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {enrolled.map((c) => (
-            <Card key={c.courseId} className="flex flex-col">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base leading-snug">{c.title}</CardTitle>
-                  {c.certificateIssued && (
-                    <Award className="h-4 w-4 text-yellow-500 shrink-0" aria-label="Certificate issued" />
-                  )}
-                </div>
-                <CardDescription className="line-clamp-2">{c.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="mt-auto space-y-3">
-                <div className="flex items-center gap-2">
-                  {c.examPassed ? (
-                    <Badge variant="default">Completed</Badge>
-                  ) : (
-                    <Badge variant="secondary">{c.completedLessons} lessons done</Badge>
-                  )}
-                </div>
-                <Button asChild variant="outline" className="w-full">
-                  <Link href={`/student/courses/${c.courseId}`}>
-                    Continue <ChevronRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          {inProgress.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-bold">In progress</h2>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {inProgress.map((c) => <LearningCourseCard key={c.courseId} course={c} />)}
+              </div>
+            </section>
+          )}
+          {completed.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-bold">Completed</h2>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {completed.map((c) => <LearningCourseCard key={c.courseId} course={c} />)}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   )

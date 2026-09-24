@@ -7,21 +7,20 @@ import {
   MetricCard,
   SimpleBarChart,
 } from "@/components/shared/dashboard-kit"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Award,
   BookOpen,
   CalendarDays,
-  ChevronRight,
   ExternalLink,
   GraduationCap,
   Sparkles,
   Video,
 } from "lucide-react"
 import Link from "next/link"
-import { EnrollCourseButton } from "@/components/student/EnrollCourseButton"
+import { CatalogCourseCard, LearningCourseCard } from "@/components/student/CourseCards"
 import { getLiveClasses } from "@/actions/live-class.actions"
 
 export default async function StudentDashboardPage() {
@@ -203,64 +202,21 @@ export default async function StudentDashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {enrolled.map((c) => (
-              <Card
-                key={c.courseId}
-                className="flex flex-col border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,248,241,0.92))]"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base leading-snug">{c.title}</CardTitle>
-                    {c.certificateIssued && (
-                      <Award className="h-4 w-4 text-yellow-500 shrink-0" />
-                    )}
-                  </div>
-                  <CardDescription className="line-clamp-2">{c.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="mt-auto space-y-3">
-                  <div className="flex items-center gap-2">
-                    {c.examPassed ? (
-                      <Badge variant="default">Completed</Badge>
-                    ) : (
-                      <Badge variant="secondary">{c.completedLessons} lessons done</Badge>
-                    )}
-                  </div>
-                  <Button asChild variant="outline" className="w-full rounded-full">
-                    <Link href={`/student/courses/${c.courseId}`}>
-                      Continue <ChevronRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {enrolled.map((c) => <LearningCourseCard key={c.courseId} course={c} />)}
           </div>
         )}
       </section>
 
       {/* Available courses */}
       {available.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="font-heading text-2xl font-semibold">Available Courses</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {available.map((c) => (
-              <Card
-                key={c.id}
-                className="flex flex-col border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,255,0.92))]"
-              >
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{c.title}</CardTitle>
-                  <CardDescription className="line-clamp-2">{c.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="mt-auto">
-                  <EnrollCourseButton 
-                    courseId={c.id} 
-                    isPaid={c.isPaid} 
-                    price={c.price} 
-                  />
-                </CardContent>
-              </Card>
-            ))}
+        <section id="available" className="space-y-4 scroll-mt-4">
+          <div>
+            <h2 className="font-heading text-2xl font-semibold">Available Courses</h2>
+            <p className="text-sm text-muted-foreground">Click a course to see what&apos;s inside before you enroll.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {available.map((c) => <CatalogCourseCard key={c.id} course={c} />)}
           </div>
         </section>
       )}
