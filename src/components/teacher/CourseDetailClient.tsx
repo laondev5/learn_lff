@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   toggleCoursePublished, deleteCourse, updateCourse,
-  createModule, toggleModulePublished, deleteModule, publishAllCourseContent,
+  createModule, toggleModulePublished, deleteModule, publishAllCourseContent, discardUnusedUpload,
 } from "@/actions/course.actions"
 import { CourseQAClient, Question } from "@/components/shared/CourseQAClient"
 import { Stepper, VisibilityToggle, type StepItem } from "@/components/teacher/Stepper"
@@ -235,8 +235,10 @@ export function CourseDetailClient({
     fd.set("price", editIsPaid ? editPrice : "0")
     if (newCoverUrl) fd.set("coverImageUrl", newCoverUrl)
     const result = await updateCourse(course.id, fd)
-    if (result.error) toast.error(result.error)
-    else { toast.success("Course updated"); setEditOpen(false); setCoverFile(null); router.refresh() }
+    if (result.error) {
+      toast.error(result.error)
+      if (newCoverUrl) discardUnusedUpload(newCoverUrl)
+    } else { toast.success("Course updated"); setEditOpen(false); setCoverFile(null); router.refresh() }
     setSaving(false)
   }
 

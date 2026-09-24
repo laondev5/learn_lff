@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import {
-  createLesson, toggleLessonPublished, deleteLesson,
+  createLesson, toggleLessonPublished, deleteLesson, discardUnusedUpload,
 } from "@/actions/course.actions"
 import { Stepper, StepHint, VisibilityToggle, type StepItem } from "@/components/teacher/Stepper"
 import { cn } from "@/lib/utils"
@@ -263,10 +263,12 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
     fd.set("content", content)
     fd.set("studentNotes", studentNotes)
     if (videoUrl) fd.set("videoUrl", videoUrl)
-    const result = await createLesson(mod.id, fd)
-    if (result.error) {
+    const result = await createLesson(mod.id, fd).catch(() => ({ error: "Couldn't save the lesson. Please try again." }) as const)
+    if ("error" in result && result.error) {
       toast.error(result.error)
-    } else {
+      // The video reached Cloudinary but the lesson wasn't saved: don't leave it behind
+      if (videoSource === "upload" && videoUrl) discardUnusedUpload(videoUrl)
+    } else if ("lessonId" in result) {
       if (visible && result.lessonId) await toggleLessonPublished(result.lessonId)
       setCreatedLessonId(result.lessonId ?? null)
       const el = document.getElementById(fileInputId) as HTMLInputElement | null

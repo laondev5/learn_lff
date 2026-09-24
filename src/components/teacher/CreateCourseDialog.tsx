@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createCourse } from "@/actions/course.actions"
+import { createCourse, discardUnusedUpload } from "@/actions/course.actions"
 import { Stepper, StepHint, type StepItem } from "@/components/teacher/Stepper"
 import { cn } from "@/lib/utils"
 
@@ -160,6 +160,7 @@ export function CreateCourseDialog({ children }: { children: React.ReactElement 
     const result = await createCourse(fd)
     if (result.error) {
       toast.error(result.error)
+      if (coverImageUrl) discardUnusedUpload(coverImageUrl)
     } else {
       toast.success("Course created! Next, add your first module.")
       setOpen(false)

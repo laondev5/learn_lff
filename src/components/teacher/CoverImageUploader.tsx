@@ -5,7 +5,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ImagePlus, Loader2, Pencil, Upload } from "lucide-react"
-import { updateCourseCover } from "@/actions/course.actions"
+import { discardUnusedUpload, updateCourseCover } from "@/actions/course.actions"
 import { cn } from "@/lib/utils"
 
 const MAX_COVER_MB = 5
@@ -44,6 +44,7 @@ export function CoverImageUploader({
     const localUrl = URL.createObjectURL(file)
     setPreview(localUrl)
     setUploading(true)
+    let uploadedUrl: string | null = null
     try {
       const fd = new FormData()
       fd.set("file", file)
@@ -51,6 +52,7 @@ export function CoverImageUploader({
       const res = await fetch("/api/upload", { method: "POST", body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Upload failed")
+      uploadedUrl = data.url
 
       const result = await updateCourseCover(courseId, data.url)
       if (result.error) throw new Error(result.error)
@@ -61,6 +63,8 @@ export function CoverImageUploader({
       router.refresh()
     } catch (err) {
       setPreview(previous)
+      // Uploaded but never attached to the course: remove it from Cloudinary
+      if (uploadedUrl) discardUnusedUpload(uploadedUrl)
       toast.error(err instanceof Error ? err.message : "Cover upload failed")
     } finally {
       URL.revokeObjectURL(localUrl)

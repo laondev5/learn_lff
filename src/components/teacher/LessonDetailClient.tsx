@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes, updateLesson } from "@/actions/course.actions"
+import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes, updateLesson, discardUnusedUpload } from "@/actions/course.actions"
 import { Stepper, StepHint, type StepItem } from "@/components/teacher/Stepper"
 
 type QuestionType = "mcq" | "true_false" | "short_answer"
@@ -367,6 +367,8 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
       const result = await saveLessonVideoUrl(lesson.id, secureUrl)
       if (result.error) {
         toast.error(result.error)
+        // Uploaded but not attached to the lesson: remove it so it doesn't linger in Cloudinary
+        discardUnusedUpload(secureUrl)
       } else {
         setCurrentVideoUrl(secureUrl)
         setUploadFile(null)
