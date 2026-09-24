@@ -1,18 +1,38 @@
 import "server-only"
 import mongoose, { Document, Model, Schema, Types } from "mongoose"
 
+export interface IMessageReply {
+  message: Types.ObjectId
+  senderName: string
+  content: string
+}
+
 export interface IMessage extends Document {
   forum: Types.ObjectId
   sender: Types.ObjectId
   content: string
+  replyTo?: IMessageReply
+  deletedAt?: Date
   createdAt: Date
 }
+
+const MessageReplySchema = new Schema<IMessageReply>(
+  {
+    message: { type: Schema.Types.ObjectId, ref: "Message", required: true },
+    senderName: { type: String, required: true },
+    content: { type: String, required: true, maxlength: 300 },
+  },
+  { _id: false }
+)
 
 const MessageSchema = new Schema<IMessage>(
   {
     forum: { type: Schema.Types.ObjectId, ref: "ChatForum", required: true },
     sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
     content: { type: String, required: true, trim: true, maxlength: 2000 },
+    // Snapshot of the quoted message so the quote still renders if the original is deleted
+    replyTo: { type: MessageReplySchema },
+    deletedAt: { type: Date },
   },
   { timestamps: true }
 )

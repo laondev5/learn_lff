@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation"
-import { getForumsForUser, getMessages } from "@/actions/chat.actions"
+import { getMessages } from "@/actions/chat.actions"
+import { getForumsCached } from "@/lib/chat.queries"
 import { auth } from "@/auth"
-import { ChatRoomClient } from "@/components/student/ChatRoomClient"
+import { ChatRoom } from "@/components/chat/ChatRoom"
 
 interface Props {
   params: Promise<{ forumId: string }>
@@ -10,18 +11,18 @@ interface Props {
 export default async function ChatRoomPage({ params }: Props) {
   const { forumId } = await params
   const session = await auth()
-  const forums = await getForumsForUser()
+  const forums = await getForumsCached()
   const forum = forums.find((f) => f.id === forumId)
   if (!forum) notFound()
 
-  const messages = await getMessages(forumId)
+  const messages = await getMessages(forumId, { limit: 50 })
 
   return (
-    <ChatRoomClient
+    <ChatRoom
+      key={forumId}
       forum={forum}
       initialMessages={messages}
-      currentUserId={session!.user.id}
-      currentUserName={session!.user.name ?? "User"}
+      currentUserRole={session!.user.role}
     />
   )
 }

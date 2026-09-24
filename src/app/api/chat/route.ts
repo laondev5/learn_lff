@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import Pusher from "pusher"
-import { sendMessage } from "@/actions/chat.actions"
-
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.PUSHER_CLUSTER!,
-  useTLS: true,
-})
+import { deleteMessage, sendMessage } from "@/actions/chat.actions"
+import { forumChannel, pusherServer } from "@/lib/pusher-server"
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -17,18 +9,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { forumId, content } = await req.json()
+  const { forumId, content, replyToId } = await req.json()
   if (!forumId || !content) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 })
   }
 
-  const result = await sendMessage(forumId, content)
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+  const result = await sendMessage(forumId, content, replyToId)
+  if (result.error || !result.message) {
+    return NextResponse.json({ error: result.error ?? "Failed to send" }, { status: 400 })
   }
 
-  // Trigger Pusher event
-  await pusher.trigger(`forum-${forumId}`, "new-message", result.message)
+  await pusherServer.trigger(forumChannel(forumId), "new-message", result.message)
 
   return NextResponse.json({ success: true, message: result.message })
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await auth()
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { messageId } = await req.json()
+  const result = await deleteMessage(messageId)
+  if (result.error || !result.forumId) {
+    return NextResponse.json({ error: result.error ?? "Failed to delete" }, { status: 400 })
+  }
+
+  await pusherServer.trigger(forumChannel(result.forumId), "message-deleted", { id: messageId })
+  return NextResponse.json({ success: true })
 }
