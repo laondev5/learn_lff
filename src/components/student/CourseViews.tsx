@@ -308,7 +308,7 @@ export function CourseLearningView({
               {
                 key: "content",
                 label: "Course content",
-                icon: BookOpen,
+                icon: <BookOpen className="h-4 w-4" />,
                 content: (
                   <div className="space-y-4">
                     <CourseCurriculum
@@ -346,11 +346,11 @@ export function CourseLearningView({
                   </div>
                 ),
               },
-              { key: "qa", label: "Q&A", icon: MessageCircle, count: questionCount, content: qa },
+              { key: "qa", label: "Q&A", icon: <MessageCircle className="h-4 w-4" />, count: questionCount, content: qa },
               {
                 key: "about",
                 label: "About",
-                icon: FileText,
+                icon: <FileText className="h-4 w-4" />,
                 content: (
                   <div className="space-y-6">
                     <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{course.description}</p>

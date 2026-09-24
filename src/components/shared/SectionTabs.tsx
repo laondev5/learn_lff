@@ -1,13 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface SectionTab {
   key: string
   label: string
-  icon?: LucideIcon
+  /**
+   * A rendered icon element, e.g. `<BookOpen className="h-4 w-4" />`. Must be an element,
+   * not the component itself: server components can't pass functions to this client component.
+   */
+  icon?: React.ReactNode
   count?: number
   content: React.ReactNode
 }
@@ -70,7 +73,7 @@ export function SectionTabs({
                 selected ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {tab.icon && <tab.icon className="h-4 w-4" />}
+              {tab.icon}
               {tab.label}
               {tab.count !== undefined && (
                 <span className={cn(
