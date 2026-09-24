@@ -4,18 +4,18 @@ import { useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
-  ChevronRight, Clock, Loader2, Plus, Trash2, Upload, Video, FileText, Link2,
+  ArrowLeft, ArrowRight, Check, ChevronRight, ClipboardCheck, Clock, Loader2, NotebookPen, Plus, Save,
+  Trash2, Upload, Video, FileText, Link2,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes } from "@/actions/course.actions"
+import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes, updateLesson } from "@/actions/course.actions"
+import { Stepper, StepHint, type StepItem } from "@/components/teacher/Stepper"
 
 type QuestionType = "mcq" | "true_false" | "short_answer"
 
@@ -105,6 +105,73 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
   const [savingUrl, setSavingUrl] = useState(false)
   const [studentNotes, setStudentNotes] = useState(lesson.studentNotes ?? "")
   const [savingNotes, setSavingNotes] = useState(false)
+  const [savedNotes, setSavedNotes] = useState(lesson.studentNotes ?? "")
+
+  // --- Content editing state ---
+  const [titleDraft, setTitleDraft] = useState(lesson.title)
+  const [contentDraft, setContentDraft] = useState(lesson.content ?? "")
+  const [savedTitle, setSavedTitle] = useState(lesson.title)
+  const [savedContent, setSavedContent] = useState(lesson.content ?? "")
+  const [savingContent, setSavingContent] = useState(false)
+
+  // --- Completion tracking for the step indicator ---
+  const [savedCueCount, setSavedCueCount] = useState(lesson.videoCues?.length ?? 0)
+  const [hasTest, setHasTest] = useState(!!lesson.test)
+
+  const isVideo = lesson.lessonType === "video"
+  const contentDirty = titleDraft !== savedTitle || contentDraft !== savedContent
+  const notesDirty = studentNotes !== savedNotes
+
+  type StepKey = "video" | "content" | "notes" | "cues" | "test"
+  const stepDefs: (StepItem & { key: StepKey })[] = isVideo
+    ? [
+        { key: "video", label: "Video", icon: Video, complete: !!currentVideoUrl },
+        { key: "content", label: "Description", icon: FileText, complete: !!savedContent.trim(), optional: true },
+        { key: "notes", label: "Notes", icon: NotebookPen, complete: !!savedNotes.trim(), optional: true },
+        { key: "cues", label: "In-Video Quiz", icon: Clock, complete: savedCueCount > 0, optional: true },
+        { key: "test", label: "Lesson Test", icon: ClipboardCheck, complete: hasTest, optional: true },
+      ]
+    : [
+        { key: "content", label: "Content", icon: FileText, complete: !!savedContent.trim() },
+        { key: "notes", label: "Notes", icon: NotebookPen, complete: !!savedNotes.trim(), optional: true },
+        { key: "test", label: "Lesson Test", icon: ClipboardCheck, complete: hasTest, optional: true },
+      ]
+  const [stepIndex, setStepIndex] = useState(0)
+  const currentKey = stepDefs[stepIndex].key
+  const moduleHref = `/teacher/courses/${lesson.courseId}/modules/${lesson.moduleId}`
+
+  function goToStep(index: number) {
+    const leaving = stepDefs[stepIndex].key
+    const unsaved =
+      (leaving === "content" && contentDirty) ||
+      (leaving === "notes" && notesDirty)
+    if (unsaved && !confirm("You have unsaved changes on this step. Leave without saving?")) return
+    setStepIndex(index)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  async function handleSaveContent() {
+    if (titleDraft.trim().length < 2) {
+      toast.error("Title must be at least 2 characters")
+      return
+    }
+    setSavingContent(true)
+    const fd = new FormData()
+    fd.set("title", titleDraft.trim())
+    fd.set("lessonType", lesson.lessonType)
+    fd.set("content", contentDraft)
+    fd.set("studentNotes", savedNotes)
+    if (/^https?:\/\//.test(currentVideoUrl)) fd.set("videoUrl", currentVideoUrl)
+    const result = await updateLesson(lesson.id, fd)
+    if (result.error) toast.error(result.error)
+    else {
+      setSavedTitle(titleDraft.trim())
+      setTitleDraft(titleDraft.trim())
+      setSavedContent(contentDraft)
+      toast.success("Lesson content saved")
+    }
+    setSavingContent(false)
+  }
 
   // --- Test handlers ---
   function addQuestion() { setQuestions((prev) => [...prev, emptyQuestion()]) }
@@ -138,7 +205,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
       title: testTitle, passingScore: Number(passingScore), maxAttempts: Number(maxAttempts), questions,
     })
     if (result.error) toast.error(result.error)
-    else toast.success("Test saved")
+    else { toast.success("Test saved"); setHasTest(true) }
     setSaving(false)
   }
 
@@ -147,7 +214,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setDeletingTest(true)
     const result = await deleteTest(lesson.id)
     if (result.error) toast.error(result.error)
-    else { toast.success("Test deleted"); setQuestions([emptyQuestion()]); setTestTitle("Lesson Test") }
+    else { toast.success("Test deleted"); setQuestions([emptyQuestion()]); setTestTitle("Lesson Test"); setHasTest(false) }
     setDeletingTest(false)
   }
 
@@ -196,7 +263,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setSavingCues(true)
     const result = await saveVideoCues(lesson.id, videoCues)
     if (result.error) toast.error(result.error)
-    else toast.success("Video quiz cues saved")
+    else { toast.success("Video quiz cues saved"); setSavedCueCount(videoCues.length) }
     setSavingCues(false)
   }
 
@@ -332,7 +399,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setSavingNotes(true)
     const result = await saveLessonStudentNotes(lesson.id, studentNotes)
     if (result.error) toast.error(result.error)
-    else toast.success("Student notes saved")
+    else { toast.success("Student notes saved"); setSavedNotes(studentNotes) }
     setSavingNotes(false)
   }
 
@@ -350,10 +417,10 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
           <ChevronRight className="h-3 w-3" />
           <Link href={`/teacher/courses/${lesson.courseId}/modules/${lesson.moduleId}`} className="hover:underline">Module</Link>
           <ChevronRight className="h-3 w-3" />
-          <span>{lesson.title}</span>
+          <span>{savedTitle}</span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold">{lesson.title}</h1>
+          <h1 className="text-2xl font-bold">{savedTitle}</h1>
           <Badge variant={lesson.isPublished ? "default" : "secondary"}>
             {lesson.isPublished ? "Published" : "Draft"}
           </Badge>
@@ -364,48 +431,58 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
         </div>
       </div>
 
-      <Tabs defaultValue={lesson.lessonType === "video" ? "video" : "content"}>
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="content" className="gap-2">
-            <FileText className="h-4 w-4" />Content
-          </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-2">
-            <FileText className="h-4 w-4" />Student Notes
-          </TabsTrigger>
-          {lesson.lessonType === "video" && (
-            <>
-              <TabsTrigger value="video" className="gap-2">
-                <Video className="h-4 w-4" />Video
-              </TabsTrigger>
-              <TabsTrigger value="cues" className="gap-2">
-                <Clock className="h-4 w-4" />In-Video Quizzes
-              </TabsTrigger>
-            </>
-          )}
-          <TabsTrigger value="test" className="gap-2">
-            <FileText className="h-4 w-4" />Lesson Test
-          </TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardContent className="pt-5 space-y-3">
+          <Stepper steps={stepDefs} current={stepIndex} onStepClick={goToStep} />
+          <p className="text-xs text-muted-foreground text-center">
+            {isVideo
+              ? "Work through each step. Only the video is required; the rest make the lesson richer."
+              : "Work through each step. Add the lesson content, then optional notes and a test."}
+          </p>
+        </CardContent>
+      </Card>
 
-        {/* ── CONTENT TAB ── */}
-        <TabsContent value="content" className="mt-6">
+      <div key={currentKey} className="animate-in fade-in-0 slide-in-from-right-4 duration-300">
+
+        {/* ── CONTENT STEP ── */}
+        {currentKey === "content" && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Lesson Content</CardTitle>
+              <CardTitle className="text-base">{isVideo ? "Lesson Description" : "Lesson Content"}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{lesson.content}</pre>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="lesson-title-edit">Lesson title</Label>
+                <Input id="lesson-title-edit" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
               </div>
-              {!lesson.content && (
-                <p className="text-sm text-muted-foreground italic">No text content. Edit the lesson from the module page to add content.</p>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="lesson-content-edit">{isVideo ? "Short description (optional)" : "Content"}</Label>
+                <Textarea
+                  id="lesson-content-edit"
+                  value={contentDraft}
+                  onChange={(e) => setContentDraft(e.target.value)}
+                  rows={isVideo ? 4 : 14}
+                  placeholder={isVideo ? "What is this video about?" : "Write the lesson content students will read…"}
+                  className="max-h-[60vh] resize-y overflow-y-auto"
+                />
+                <p className="text-right text-[11px] text-muted-foreground">
+                  {contentDraft.trim() ? contentDraft.trim().split(/\s+/).length : 0} words
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button onClick={handleSaveContent} disabled={savingContent || !contentDirty}>
+                  {savingContent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : contentDirty ? <Save className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+                  {contentDirty ? "Save Content" : "Saved"}
+                </Button>
+                {contentDirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+              </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
         {/* ── STUDENT NOTES TAB ── */}
-        <TabsContent value="notes" className="mt-6">
+        {currentKey === "notes" && (
+        <div>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Notes For Students</CardTitle>
@@ -420,17 +497,22 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
                 rows={8}
                 placeholder="Write notes for students..."
               />
-              <Button onClick={handleSaveStudentNotes} disabled={savingNotes}>
-                {savingNotes ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save Notes
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button onClick={handleSaveStudentNotes} disabled={savingNotes || !notesDirty}>
+                  {savingNotes ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : notesDirty ? <Save className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+                  {notesDirty ? "Save Notes" : "Saved"}
+                </Button>
+                {notesDirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+              </div>
+              <StepHint>Optional. Nothing to add? Just continue to the next step.</StepHint>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+        )}
 
         {/* ── VIDEO TAB ── */}
-        {lesson.lessonType === "video" && (
-          <TabsContent value="video" className="mt-6 space-y-6">
+        {currentKey === "video" && (
+        <div className="space-y-6">
             {/* Current video preview */}
             {currentVideoUrl && (
               <Card>
@@ -566,12 +648,12 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
         )}
 
         {/* ── IN-VIDEO QUIZZES TAB ── */}
-        {lesson.lessonType === "video" && (
-          <TabsContent value="cues" className="mt-6 space-y-6">
+        {currentKey === "cues" && (
+        <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold mb-1">In-Video Quiz Cues</h2>
               <p className="text-sm text-muted-foreground mb-4">
@@ -661,11 +743,12 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
                 </Button>
               </div>
             </div>
-          </TabsContent>
+          </div>
         )}
 
         {/* ── LESSON TEST TAB ── */}
-        <TabsContent value="test" className="mt-6">
+        {currentKey === "test" && (
+        <div>
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-lg font-semibold">Lesson Test</h2>
@@ -724,8 +807,33 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
               </Button>
             </form>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+        )}
+      </div>
+
+      {/* Step navigation */}
+      <div className="flex items-center gap-3 border-t pt-4">
+        {stepIndex > 0 ? (
+          <Button variant="ghost" onClick={() => goToStep(stepIndex - 1)}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" />{stepDefs[stepIndex - 1].label}
+          </Button>
+        ) : (
+          <Button asChild variant="ghost">
+            <Link href={moduleHref}><ArrowLeft className="mr-1.5 h-4 w-4" />Back to module</Link>
+          </Button>
+        )}
+        <div className="ml-auto">
+          {stepIndex < stepDefs.length - 1 ? (
+            <Button onClick={() => goToStep(stepIndex + 1)}>
+              Next: {stepDefs[stepIndex + 1].label}<ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link href={moduleHref}><Check className="mr-1.5 h-4 w-4" />Finish &amp; back to module</Link>
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -50,10 +50,13 @@ export async function createCourse(formData: FormData) {
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
+  const coverImageUrl = formData.get("coverImageUrl")?.toString().trim()
+
   await connectDB()
   const course = await Course.create({
     ...parsed.data,
     price: parsed.data.isPaid ? parsed.data.price : 0,
+    ...(coverImageUrl ? { coverImageUrl } : {}),
     teacher: session.user.id,
   })
 
@@ -105,6 +108,55 @@ export async function toggleCoursePublished(courseId: string) {
   revalidatePath(`/student/courses/${courseId}`)
   revalidatePath("/student/dashboard")
   return { success: true, isPublished: course.isPublished }
+}
+
+export async function updateCourseCover(courseId: string, coverImageUrl: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+  if (!/^https:\/\//.test(coverImageUrl)) return { error: "Invalid image URL" }
+
+  await connectDB()
+  const updated = await Course.findOneAndUpdate(
+    { _id: courseId, teacher: session.user.id },
+    { coverImageUrl }
+  )
+  if (!updated) return { error: "Course not found" }
+
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath("/teacher/courses")
+  revalidatePath(`/student/courses/${courseId}`)
+  return { success: true }
+}
+
+/**
+ * Publishes every draft module and lesson in a course so students can see them.
+ * With `includeCourse`, the course itself is published too: one click for everything.
+ */
+export async function publishAllCourseContent(courseId: string, options: { includeCourse?: boolean } = {}) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+
+  await connectDB()
+  const course = await Course.findOne({ _id: courseId, teacher: session.user.id })
+  if (!course) return { error: "Course not found" }
+
+  const [mods, lessons] = await Promise.all([
+    Module.updateMany({ course: courseId, isPublished: false }, { isPublished: true }),
+    Lesson.updateMany({ course: courseId, isPublished: false }, { isPublished: true }),
+  ])
+
+  let coursePublished = false
+  if (options.includeCourse && !course.isPublished) {
+    course.isPublished = true
+    await course.save()
+    coursePublished = true
+  }
+
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath("/teacher/courses")
+  revalidatePath(`/student/courses/${courseId}`)
+  revalidatePath("/student/dashboard")
+  return { success: true, modules: mods.modifiedCount, lessons: lessons.modifiedCount, coursePublished }
 }
 
 export async function deleteCourse(courseId: string) {

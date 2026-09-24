@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { getCourseWithModules } from "@/lib/course.queries"
+import { getCourseExam, getCourseWithModules } from "@/lib/course.queries"
 import { CourseDetailClient } from "@/components/teacher/CourseDetailClient"
 import { getCourseQuestions } from "@/actions/qa.actions"
 import { auth } from "@/auth"
@@ -14,9 +14,10 @@ export default async function CourseDetailPage({ params }: Props) {
   const { courseId } = await params
   const session = await auth()
   
-  const [course, questions] = await Promise.all([
+  const [course, questions, exam] = await Promise.all([
     getCourseWithModules(courseId),
     getCourseQuestions(courseId),
+    getCourseExam(courseId),
   ])
 
   if (!course) notFound()
@@ -25,6 +26,7 @@ export default async function CourseDetailPage({ params }: Props) {
     <CourseDetailClient 
       course={course} 
       questions={questions} 
+      hasExam={!!exam}
       currentUserId={session!.user.id} 
     />
   )
