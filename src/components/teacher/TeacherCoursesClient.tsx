@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import { BookOpen, Plus, ChevronRight, LayoutGrid, List, ChevronLeft } from "lucide-react"
+import { BookOpen, Plus, ChevronRight, LayoutGrid, List, ChevronLeft, ImageOff } from "lucide-react"
 import { CreateCourseDialog } from "@/components/teacher/CreateCourseDialog"
 
 interface Course {
@@ -17,6 +18,7 @@ interface Course {
   description: string
   isPaid: boolean
   price: number
+  coverImageUrl?: string | null
   isPublished: boolean
   createdAt: string
 }
@@ -101,8 +103,18 @@ export function TeacherCoursesClient({ courses }: { courses: Course[] }) {
                   <TableBody>
                     {paginated.map((course) => (
                       <TableRow key={course.id}>
-                        <TableCell className="font-medium max-w-[200px]">
-                          <span className="line-clamp-1">{course.title}</span>
+                        <TableCell className="font-medium max-w-65">
+                          <div className="flex items-center gap-3">
+                            <CoverThumb url={course.coverImageUrl} title={course.title} className="h-10 w-16" />
+                            <div className="min-w-0">
+                              <span className="line-clamp-1">{course.title}</span>
+                              {!course.coverImageUrl && (
+                                <Link href={`/teacher/courses/${course.id}`} className="text-[11px] font-medium text-amber-600 hover:underline">
+                                  No cover image, add one
+                                </Link>
+                              )}
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground max-w-[260px]">
                           <span className="line-clamp-1">{course.description}</span>
@@ -156,7 +168,8 @@ export function TeacherCoursesClient({ courses }: { courses: Course[] }) {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {paginated.map((course) => (
-              <Card key={course.id} className="flex flex-col">
+              <Card key={course.id} className="flex flex-col overflow-hidden pt-0">
+                <CoverThumb url={course.coverImageUrl} title={course.title} className="aspect-video w-full rounded-none" large />
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base leading-snug">{course.title}</CardTitle>
@@ -199,6 +212,29 @@ export function TeacherCoursesClient({ courses }: { courses: Course[] }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function CoverThumb({
+  url, title, className, large,
+}: {
+  url?: string | null
+  title: string
+  className?: string
+  large?: boolean
+}) {
+  if (url) {
+    return (
+      <div className={`relative shrink-0 overflow-hidden rounded-md bg-muted ${className ?? ""}`}>
+        <Image src={url} alt={title} fill sizes={large ? "400px" : "64px"} className="object-cover" />
+      </div>
+    )
+  }
+  return (
+    <div className={`relative flex shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-amber-400/70 bg-amber-50 text-amber-600 dark:bg-amber-500/10 ${className ?? ""}`}>
+      <ImageOff className={large ? "h-7 w-7" : "h-4 w-4"} />
+      {large && <span className="text-xs font-medium">No cover image yet</span>}
     </div>
   )
 }

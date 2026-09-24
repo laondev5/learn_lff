@@ -10,8 +10,17 @@ import Lesson from "@/models/Lesson.model"
 import Test from "@/models/Test.model"
 import Exam from "@/models/Exam.model"
 import { Types } from "mongoose"
+import StudentProgress from "@/models/StudentProgress.model"
+import {
+  deleteCoursesCascade, deleteLessonsCascade, destroyCloudinaryMedia, parseCloudinaryUrl,
+} from "@/lib/media-cleanup"
 
 // ─── Courses ────────────────────────────────────────────────────────────────
+
+/** Only the teacher who owns a course may change or delete its content. */
+async function ownsCourse(teacherId: string, courseId: Types.ObjectId | string) {
+  return !!(await Course.exists({ _id: courseId, teacher: teacherId }))
+}
 
 function getActionErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) {
@@ -50,10 +59,13 @@ export async function createCourse(formData: FormData) {
   })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
+  const coverImageUrl = formData.get("coverImageUrl")?.toString().trim()
+
   await connectDB()
   const course = await Course.create({
     ...parsed.data,
     price: parsed.data.isPaid ? parsed.data.price : 0,
+    ...(coverImageUrl ? { coverImageUrl } : {}),
     teacher: session.user.id,
   })
 
@@ -76,14 +88,20 @@ export async function updateCourse(courseId: string, formData: FormData) {
   const coverImageUrl = formData.get("coverImageUrl")?.toString().trim()
 
   await connectDB()
-  await Course.findOneAndUpdate(
+  const previous = await Course.findOneAndUpdate(
     { _id: courseId, teacher: session.user.id },
     {
       ...parsed.data,
       price: parsed.data.isPaid ? parsed.data.price : 0,
       ...(coverImageUrl ? { coverImageUrl } : {}),
     }
-  )
+  ).lean()
+  if (!previous) return { error: "Course not found" }
+
+  // A new cover replaces the old one: remove the old file from Cloudinary
+  if (coverImageUrl && previous.coverImageUrl && previous.coverImageUrl !== coverImageUrl) {
+    await destroyCloudinaryMedia([previous.coverImageUrl])
+  }
 
   revalidatePath(`/teacher/courses/${courseId}`)
   return { success: true }
@@ -107,19 +125,73 @@ export async function toggleCoursePublished(courseId: string) {
   return { success: true, isPublished: course.isPublished }
 }
 
-export async function deleteCourse(courseId: string) {
+export async function updateCourseCover(courseId: string, coverImageUrl: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+  if (!/^https:\/\//.test(coverImageUrl)) return { error: "Invalid image URL" }
+
+  await connectDB()
+  const previous = await Course.findOneAndUpdate(
+    { _id: courseId, teacher: session.user.id },
+    { coverImageUrl }
+  ).lean()
+  if (!previous) return { error: "Course not found" }
+
+  if (previous.coverImageUrl && previous.coverImageUrl !== coverImageUrl) {
+    await destroyCloudinaryMedia([previous.coverImageUrl])
+  }
+
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath("/teacher/courses")
+  revalidatePath(`/student/courses/${courseId}`)
+  return { success: true }
+}
+
+/**
+ * Publishes every draft module and lesson in a course so students can see them.
+ * With `includeCourse`, the course itself is published too: one click for everything.
+ */
+export async function publishAllCourseContent(courseId: string, options: { includeCourse?: boolean } = {}) {
   const session = await auth()
   if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
   await connectDB()
-  await Course.findOneAndDelete({ _id: courseId, teacher: session.user.id })
-  await Module.deleteMany({ course: courseId })
-  await Lesson.deleteMany({ course: courseId })
-  await Test.deleteMany({ course: courseId })
-  await Exam.deleteMany({ course: courseId })
+  const course = await Course.findOne({ _id: courseId, teacher: session.user.id })
+  if (!course) return { error: "Course not found" }
+
+  const [mods, lessons] = await Promise.all([
+    Module.updateMany({ course: courseId, isPublished: false }, { isPublished: true }),
+    Lesson.updateMany({ course: courseId, isPublished: false }, { isPublished: true }),
+  ])
+
+  let coursePublished = false
+  if (options.includeCourse && !course.isPublished) {
+    course.isPublished = true
+    await course.save()
+    coursePublished = true
+  }
+
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath("/teacher/courses")
+  revalidatePath(`/student/courses/${courseId}`)
+  revalidatePath("/student/dashboard")
+  return { success: true, modules: mods.modifiedCount, lessons: lessons.modifiedCount, coursePublished }
+}
+
+export async function deleteCourse(courseId: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+
+  if (!Types.ObjectId.isValid(courseId)) return { error: "Course not found" }
+
+  await connectDB()
+  if (!(await ownsCourse(session.user.id, courseId))) return { error: "Course not found" }
+
+  // Deletes the course and everything under it, then its cover + lesson videos on Cloudinary
+  const { media } = await deleteCoursesCascade([new Types.ObjectId(courseId)])
 
   revalidatePath("/teacher/courses")
-  return { success: true }
+  return { success: true, mediaDeleted: media.deleted.length, mediaFailed: media.failed.length }
 }
 
 export async function getTeacherCourses() {
@@ -206,13 +278,19 @@ export async function deleteModule(moduleId: string) {
   await connectDB()
   const mod = await Module.findById(moduleId).lean()
   if (!mod) return { error: "Module not found" }
+  if (!(await ownsCourse(session.user.id, mod.course))) return { error: "Module not found" }
 
-  await Module.findByIdAndDelete(moduleId)
-  await Lesson.deleteMany({ module: moduleId })
-  await Test.deleteMany({ course: mod.course })
+  // Only this module's lessons (and their tests + videos), not the whole course's tests
+  const lessons = await Lesson.find({ module: moduleId }).select("_id").lean()
+  const { media } = await deleteLessonsCascade(lessons.map((l) => l._id), mod.course)
+
+  await Promise.all([
+    Module.findByIdAndDelete(moduleId),
+    StudentProgress.updateMany({ course: mod.course }, { $pull: { completedModules: mod._id } }),
+  ])
 
   revalidatePath(`/teacher/courses/${mod.course.toString()}`)
-  return { success: true }
+  return { success: true, mediaDeleted: media.deleted.length, mediaFailed: media.failed.length }
 }
 
 
@@ -307,6 +385,7 @@ export async function updateLesson(lessonId: string, formData: FormData) {
   await connectDB()
   const lesson = await Lesson.findById(lessonId).lean()
   if (!lesson) return { error: "Lesson not found" }
+  if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
   await Lesson.findByIdAndUpdate(lessonId, {
     title: parsed.data.title,
@@ -316,6 +395,11 @@ export async function updateLesson(lessonId: string, formData: FormData) {
     videoUrl: parsed.data.videoUrl || undefined,
     youtubeVideoId: parsed.data.youtubeVideoId || undefined,
   })
+
+  // Video swapped for a different one: remove the old upload
+  if (parsed.data.videoUrl && lesson.videoUrl && lesson.videoUrl !== parsed.data.videoUrl) {
+    await destroyCloudinaryMedia([lesson.videoUrl])
+  }
 
   revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}`)
   return { success: true }
@@ -356,11 +440,18 @@ export async function saveLessonVideoUrl(lessonId: string, videoUrl: string) {
     await connectDB()
     const lesson = await Lesson.findById(lessonId)
     if (!lesson) return { error: "Lesson not found" }
+    if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
+    const previousVideoUrl = lesson.videoUrl
     await Lesson.findByIdAndUpdate(lessonId, {
       $set: { videoUrl },
       $unset: { youtubeVideoId: 1 },
     })
+
+    // The new video replaces the old one: remove the old upload from Cloudinary
+    if (previousVideoUrl && previousVideoUrl !== videoUrl) {
+      await destroyCloudinaryMedia([previousVideoUrl])
+    }
 
     revalidatePath(
       `/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}/lessons/${lessonId}`
@@ -418,12 +509,30 @@ export async function deleteLesson(lessonId: string) {
   await connectDB()
   const lesson = await Lesson.findById(lessonId).lean()
   if (!lesson) return { error: "Lesson not found" }
+  if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
-  await Lesson.findByIdAndDelete(lessonId)
-  await Test.deleteOne({ lesson: lessonId })
+  // Removes the lesson, its test + attempts, progress references, then the video on Cloudinary
+  const { media } = await deleteLessonsCascade([lesson._id], lesson.course)
 
   revalidatePath(`/teacher/courses/${lesson.course.toString()}/modules/${lesson.module.toString()}`)
-  return { success: true }
+  return { success: true, mediaDeleted: media.deleted.length, mediaFailed: media.failed.length }
+}
+
+/**
+ * Cleans up a file that was uploaded to Cloudinary but never saved (e.g. the
+ * upload finished but creating the lesson failed). Only removes files in the
+ * course video/cover folders that no course or lesson references.
+ */
+export async function discardUnusedUpload(url: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
+
+  const asset = parseCloudinaryUrl(url)
+  if (!asset || !/^lff-lms\/(videos|covers)\//.test(asset.publicId)) return { error: "Not a course upload" }
+
+  await connectDB()
+  const result = await destroyCloudinaryMedia([url])
+  return { success: true, deleted: result.deleted.length > 0 }
 }
 
 

@@ -3,24 +3,10 @@
 import { z } from "zod"
 import bcryptjs from "bcryptjs"
 import { connectDB } from "@/lib/mongoose"
-import cloudinary from "@/lib/cloudinary"
 import User from "@/models/User.model"
 import ChatForum from "@/models/ChatForum.model"
 import Course from "@/models/Course.model"
-import Module from "@/models/Module.model"
-import Lesson from "@/models/Lesson.model"
-import Test from "@/models/Test.model"
-import TestSubmission from "@/models/TestSubmission.model"
-import Exam from "@/models/Exam.model"
-import ExamSubmission from "@/models/ExamSubmission.model"
-import StudentProgress from "@/models/StudentProgress.model"
-import Certificate from "@/models/Certificate.model"
-import CourseQuestion from "@/models/CourseQuestion.model"
-import CourseSettings from "@/models/CourseSettings.model"
 import Assessment from "@/models/Assessment.model"
-import Submission from "@/models/Submission.model"
-import ProctoringSession from "@/models/ProctoringSession.model"
-import PaymentTransaction from "@/models/PaymentTransaction.model"
 import Announcement from "@/models/Announcement.model"
 import LiveClass from "@/models/LiveClass.model"
 import { ORDINATION_OPTIONS } from "@/lib/constants"
@@ -29,6 +15,7 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { Types } from "mongoose"
 import { writeSecurityAuditLog } from "@/lib/security-audit"
+import { deleteCoursesCascade } from "@/lib/media-cleanup"
 import {
   generateSecureTemporaryPassword,
   getTemporaryPasswordExpiryDate,
@@ -60,40 +47,6 @@ const updateProfileSchema = z.object({
   kycAddress: z.string().optional(),
   kycLivePhotoUrl: z.string().optional(),
 })
-
-function extractCloudinaryPublicId(url: string): string | null {
-  try {
-    const parsed = new URL(url)
-    if (!parsed.hostname.includes("res.cloudinary.com")) return null
-
-    const parts = parsed.pathname.split("/").filter(Boolean)
-    const uploadIdx = parts.findIndex((p) => p === "upload")
-    if (uploadIdx === -1) return null
-
-    const versionIdx = parts.findIndex((p, idx) => idx > uploadIdx && /^v\d+$/.test(p))
-    const startIdx = versionIdx !== -1 ? versionIdx + 1 : uploadIdx + 1
-    if (startIdx >= parts.length) return null
-
-    const publicIdParts = parts.slice(startIdx)
-    const last = publicIdParts[publicIdParts.length - 1]
-    publicIdParts[publicIdParts.length - 1] = last.replace(/\.[^/.]+$/, "")
-
-    return publicIdParts.join("/")
-  } catch {
-    return null
-  }
-}
-
-async function deleteCloudinaryAssetByUrl(url: string) {
-  const publicId = extractCloudinaryPublicId(url)
-  if (!publicId) return
-
-  // Try both resource types because lesson media may be image or video.
-  await Promise.allSettled([
-    cloudinary.uploader.destroy(publicId, { resource_type: "image", invalidate: true }),
-    cloudinary.uploader.destroy(publicId, { resource_type: "video", invalidate: true }),
-  ])
-}
 
 export async function createUser(formData: FormData) {
   const session = await auth()
@@ -274,44 +227,11 @@ export async function deleteUser(userId: string) {
 
   if (user.role === "teacher") {
     const teacherId = new Types.ObjectId(userId)
-    const courses = await Course.find({ teacher: teacherId })
-      .select("_id coverImageUrl")
-      .lean<{ _id: Types.ObjectId; coverImageUrl?: string }[]>()
+    const courses = await Course.find({ teacher: teacherId }).select("_id").lean()
 
-    const courseIds = courses.map((c) => c._id)
-
-    if (courseIds.length > 0) {
-      const lessons = await Lesson.find({ course: { $in: courseIds } })
-        .select("videoUrl")
-        .lean<{ videoUrl?: string }[]>()
-
-      const assetUrls = [
-        ...courses.map((c) => c.coverImageUrl).filter((url): url is string => !!url),
-        ...lessons.map((l) => l.videoUrl).filter((url): url is string => !!url),
-      ]
-
-      await Promise.all(assetUrls.map((url) => deleteCloudinaryAssetByUrl(url)))
-
-      await Promise.all([
-        Announcement.deleteMany({ course: { $in: courseIds } }),
-        LiveClass.deleteMany({ course: { $in: courseIds } }),
-        CourseQuestion.deleteMany({ course: { $in: courseIds } }),
-        CourseSettings.deleteMany({ course: { $in: courseIds } }),
-        Assessment.deleteMany({ course: { $in: courseIds } }),
-        Submission.deleteMany({ course: { $in: courseIds } }),
-        ProctoringSession.deleteMany({ course: { $in: courseIds } }),
-        TestSubmission.deleteMany({ course: { $in: courseIds } }),
-        ExamSubmission.deleteMany({ course: { $in: courseIds } }),
-        StudentProgress.deleteMany({ course: { $in: courseIds } }),
-        Certificate.deleteMany({ course: { $in: courseIds } }),
-        PaymentTransaction.deleteMany({ course: { $in: courseIds } }),
-        Test.deleteMany({ course: { $in: courseIds } }),
-        Exam.deleteMany({ course: { $in: courseIds } }),
-        Lesson.deleteMany({ course: { $in: courseIds } }),
-        Module.deleteMany({ course: { $in: courseIds } }),
-        Course.deleteMany({ _id: { $in: courseIds } }),
-      ])
-    }
+    // Deletes every course with its modules, lessons, tests, progress, etc.,
+    // then the covers and lesson videos on Cloudinary
+    await deleteCoursesCascade(courses.map((c) => c._id))
 
     // Remove teacher-owned records not strictly tied to a course.
     await Promise.all([

@@ -26,6 +26,7 @@ export async function getTeacherCourses() {
     description: c.description,
     isPaid: c.isPaid ?? false,
     price: c.price ?? 0,
+    coverImageUrl: c.coverImageUrl ?? null,
     isPublished: c.isPublished,
     createdAt: c.createdAt.toISOString(),
   }))

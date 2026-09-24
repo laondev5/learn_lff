@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { CreditCard, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { enrollInCourse, initializeCoursePayment } from "@/actions/student.actions"
 
 interface EnrollCourseButtonProps {
   courseId: string
   isPaid?: boolean
   price?: number
+  label?: string
+  size?: "default" | "lg"
+  className?: string
 }
 
-export function EnrollCourseButton({ courseId, isPaid, price }: EnrollCourseButtonProps) {
+export function EnrollCourseButton({ courseId, isPaid, price, label, size = "default", className }: EnrollCourseButtonProps) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -40,7 +44,7 @@ export function EnrollCourseButton({ courseId, isPaid, price }: EnrollCourseButt
   }
 
   return (
-    <Button onClick={handleEnroll} disabled={loading} className="w-full">
+    <Button onClick={handleEnroll} disabled={loading} size={size} className={cn("w-full", className)}>
       {loading ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : isPaid ? (
@@ -48,7 +52,7 @@ export function EnrollCourseButton({ courseId, isPaid, price }: EnrollCourseButt
       ) : (
         <Plus className="mr-2 h-4 w-4" />
       )}
-      {isPaid ? `Pay NGN ${price?.toLocaleString()}` : "Enroll for Free"}
+      {label ?? (isPaid ? `Pay NGN ${price?.toLocaleString()}` : "Enroll for Free")}
     </Button>
   )
 }

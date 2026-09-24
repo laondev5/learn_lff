@@ -136,7 +136,7 @@ export function LessonViewerClient({
   const youtubeVideoId = resolveYouTubeId()
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
         <Link href={`/student/courses/${courseId}`} className="hover:underline">Course</Link>

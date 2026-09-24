@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import Pusher from "pusher"
-
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.PUSHER_CLUSTER!,
-  useTLS: true,
-})
+import { hasForumAccess } from "@/actions/chat.actions"
+import { pusherServer } from "@/lib/pusher-server"
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -21,11 +14,17 @@ export async function POST(req: NextRequest) {
   const socketId = params.get("socket_id")!
   const channel = params.get("channel_name")!
 
-  const userData = {
-    user_id: session.user.id,
-    user_info: { name: session.user.name },
+  // Group presence channels (who's online) are limited to members of that group
+  const forumMatch = channel.match(/^presence-forum-([a-f0-9]{24})$/)
+  if (forumMatch && !(await hasForumAccess(forumMatch[1]))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const authResponse = pusher.authorizeChannel(socketId, channel, userData)
+  const userData = {
+    user_id: session.user.id,
+    user_info: { name: session.user.name, role: session.user.role },
+  }
+
+  const authResponse = pusherServer.authorizeChannel(socketId, channel, userData)
   return NextResponse.json(authResponse)
 }

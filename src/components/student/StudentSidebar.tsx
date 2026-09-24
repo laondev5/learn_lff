@@ -12,7 +12,7 @@ const navItems = [
   { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/student/courses", label: "My Courses", icon: BookOpen },
   { href: "/student/announcements", label: "Announcements", icon: Megaphone },
-  { href: "/student/chat", label: "Chat Forums", icon: MessageSquare },
+  { href: "/student/chat", label: "Community", icon: MessageSquare },
   { href: "/student/certificates", label: "Certificates", icon: Award },
   { href: "/student/profile", label: "My Profile", icon: UserCircle },
 ]

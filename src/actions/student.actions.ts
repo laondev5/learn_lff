@@ -16,6 +16,49 @@ import { Types } from "mongoose"
 
 import { initializePaystackPayment } from "@/lib/paystack"
 
+// ─── Shared helpers ──────────────────────────────────────────────────────────
+
+/** Published modules + lessons of a course, with lesson type and whether each lesson has a test. */
+async function loadPublishedCurriculum(courseId: string | Types.ObjectId) {
+  const modules = await Module.find({ course: courseId, isPublished: true }).sort({ order: 1 }).lean()
+  const moduleIds = modules.map((m) => m._id)
+  const [lessons, tests] = await Promise.all([
+    Lesson.find({ module: { $in: moduleIds }, isPublished: true })
+      .sort({ order: 1 })
+      .select("title order lessonType module")
+      .lean(),
+    Test.find({ course: courseId, isPublished: true }).select("lesson").lean(),
+  ])
+  const lessonsWithTest = new Set(tests.map((t) => t.lesson.toString()))
+
+  return modules.map((mod) => ({
+    id: mod._id.toString(),
+    title: mod.title,
+    description: mod.description ?? "",
+    order: mod.order,
+    lessons: lessons
+      .filter((l) => l.module.toString() === mod._id.toString())
+      .map((l) => ({
+        id: l._id.toString(),
+        title: l.title,
+        order: l.order,
+        lessonType: (l.lessonType ?? "text") as "video" | "text",
+        hasTest: lessonsWithTest.has(l._id.toString()),
+      })),
+  }))
+}
+
+/** Number of lessons students can actually see (published lessons in published modules), per course. */
+async function countVisibleLessons(courseIds: Types.ObjectId[]) {
+  if (courseIds.length === 0) return new Map<string, number>()
+  const modules = await Module.find({ course: { $in: courseIds }, isPublished: true }).select("_id").lean()
+  const counts = await Lesson.aggregate<{ _id: Types.ObjectId; count: number }>([
+    { $match: { module: { $in: modules.map((m) => m._id) }, isPublished: true } },
+    { $group: { _id: "$course", count: { $sum: 1 } } },
+  ])
+  return new Map(counts.map((c) => [c._id.toString(), c.count]))
+}
+
 // ─── Enrollment & Course Listing ─────────────────────────────────────────────
 
 export async function initializeCoursePayment(courseId: string) {
@@ -48,30 +91,50 @@ export async function getEnrolledCourses() {
 
   await connectDB()
   const progresses = await StudentProgress.find({ student: session.user.id })
-    .populate("course")
+    .populate({ path: "course", populate: { path: "teacher", select: "name" } })
+    .sort({ updatedAt: -1 })
     .lean()
 
+  type PopulatedCourse = {
+    _id: Types.ObjectId
+    title: string
+    description: string
+    coverImageUrl?: string
+    isPublished: boolean
+    teacher?: { name?: string } | null
+  }
+
+  const courseIds = progresses
+    .map((p) => (p.course as unknown as PopulatedCourse | null)?._id)
+    .filter((id): id is Types.ObjectId => !!id)
+  const lessonCounts = await countVisibleLessons(courseIds)
+
   return progresses.flatMap((p) => {
-    const course = p.course as unknown as
-      | {
-          _id: Types.ObjectId
-          title: string
-          description: string
-          isPublished: boolean
-        }
-      | null
+    const course = p.course as unknown as PopulatedCourse | null
 
     if (!course?._id) {
       return []
     }
+
+    const totalLessons = lessonCounts.get(course._id.toString()) ?? 0
+    const completedLessons = p.completedLessons.length
+    const progressPercent = p.examPassed
+      ? 100
+      : totalLessons > 0
+        ? Math.min(100, Math.round((completedLessons / totalLessons) * 100))
+        : 0
 
     return [
       {
         courseId: course._id.toString(),
         title: course.title,
         description: course.description,
+        coverImageUrl: course.coverImageUrl ?? null,
+        teacherName: course.teacher?.name ?? "Instructor",
         isPublished: course.isPublished,
-        completedLessons: p.completedLessons.length,
+        completedLessons,
+        totalLessons,
+        progressPercent,
         examPassed: p.examPassed,
         certificateIssued: p.certificateIssued,
         enrolledAt: p.enrolledAt.toISOString(),
@@ -91,7 +154,12 @@ export async function getAvailableCourses() {
   const courses = await Course.find({
     isPublished: true,
     _id: { $nin: enrolledIds.map((id) => new Types.ObjectId(id)) },
-  }).lean()
+  })
+    .populate("teacher", "name")
+    .sort({ createdAt: -1 })
+    .lean()
+
+  const lessonCounts = await countVisibleLessons(courses.map((c) => c._id))
 
   return courses.map((c) => ({
     id: c._id.toString(),
@@ -99,7 +167,57 @@ export async function getAvailableCourses() {
     description: c.description,
     isPaid: c.isPaid,
     price: c.price,
+    coverImageUrl: c.coverImageUrl ?? null,
+    teacherName: (c.teacher as unknown as { name?: string } | null)?.name ?? "Instructor",
+    lessonCount: lessonCounts.get(c._id.toString()) ?? 0,
   }))
+}
+
+/** Public, Udemy-style landing data for a course the student is browsing (enrolled or not). */
+export async function getCoursePreview(courseId: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "student") return null
+  if (!Types.ObjectId.isValid(courseId)) return null
+
+  await connectDB()
+  const [course, progress] = await Promise.all([
+    Course.findById(courseId).populate("teacher", "name avatarUrl").lean(),
+    StudentProgress.exists({ student: session.user.id, course: courseId }),
+  ])
+  if (!course) return null
+  const isEnrolled = !!progress
+  if (!course.isPublished && !isEnrolled) return null
+
+  const [curriculum, exam, studentCount] = await Promise.all([
+    loadPublishedCurriculum(courseId),
+    Assessment.exists({ course: courseId, type: "exam", isPublished: true }),
+    StudentProgress.countDocuments({ course: courseId }),
+  ])
+
+  const allLessons = curriculum.flatMap((m) => m.lessons)
+  const teacher = course.teacher as unknown as { name?: string; avatarUrl?: string } | null
+
+  return {
+    id: course._id.toString(),
+    title: course.title,
+    description: course.description,
+    coverImageUrl: course.coverImageUrl ?? null,
+    isPaid: course.isPaid ?? false,
+    price: course.price ?? 0,
+    updatedAt: course.updatedAt.toISOString(),
+    instructor: { name: teacher?.name ?? "Instructor", avatarUrl: teacher?.avatarUrl ?? null },
+    studentCount,
+    isEnrolled,
+    hasExam: !!exam,
+    stats: {
+      modules: curriculum.length,
+      lessons: allLessons.length,
+      videoLessons: allLessons.filter((l) => l.lessonType === "video").length,
+      textLessons: allLessons.filter((l) => l.lessonType === "text").length,
+      tests: allLessons.filter((l) => l.hasTest).length,
+    },
+    modules: curriculum,
+  }
 }
 
 export async function enrollInCourse(courseId: string) {
@@ -135,33 +253,31 @@ export async function getCourseForStudent(courseId: string) {
   }).lean()
   if (!progress) return null
 
-  const course = await Course.findById(courseId).lean()
+  const course = await Course.findById(courseId).populate("teacher", "name avatarUrl").lean()
   if (!course) return null
 
-  const modules = await Module.find({ course: courseId, isPublished: true }).sort({ order: 1 }).lean()
+  const curriculum = await loadPublishedCurriculum(courseId)
 
-  const completedLessonIds = progress.completedLessons.map((id) => id.toString())
-  const completedModuleIds = progress.completedModules.map((id) => id.toString())
+  const completedLessonIds = new Set(progress.completedLessons.map((id) => id.toString()))
+  const completedModuleIds = new Set(progress.completedModules.map((id) => id.toString()))
 
-  const modulesData = await Promise.all(
-    modules.map(async (mod) => {
-      const lessons = await Lesson.find({ module: mod._id, isPublished: true })
-        .sort({ order: 1 })
-        .lean()
-      return {
-        id: mod._id.toString(),
-        title: mod.title,
-        order: mod.order,
-        isCompleted: completedModuleIds.includes(mod._id.toString()),
-        lessons: lessons.map((l) => ({
-          id: l._id.toString(),
-          title: l.title,
-          order: l.order,
-          isCompleted: completedLessonIds.includes(l._id.toString()),
-        })),
-      }
+  // Same sequential rule as the lesson viewer: a lesson unlocks once the one before it
+  // is complete; the first lesson of a module unlocks once the previous module is complete.
+  let prevModuleComplete = true
+  let nextLesson: { id: string; title: string; moduleTitle: string } | null = null
+  const modulesData = curriculum.map((mod) => {
+    const isCompleted = completedModuleIds.has(mod.id)
+    let prevLessonComplete = prevModuleComplete
+    const lessons = mod.lessons.map((l) => {
+      const done = completedLessonIds.has(l.id)
+      const locked = !done && !prevLessonComplete
+      if (!done && !locked && !nextLesson) nextLesson = { id: l.id, title: l.title, moduleTitle: mod.title }
+      prevLessonComplete = done
+      return { ...l, isCompleted: done, locked }
     })
-  )
+    prevModuleComplete = isCompleted
+    return { ...mod, isCompleted, lessons }
+  })
 
   const exam = await Assessment.findOne({ course: courseId, type: "exam", isPublished: true }).lean()
 
@@ -171,11 +287,16 @@ export async function getCourseForStudent(courseId: string) {
     0
   )
 
+  const teacher = course.teacher as unknown as { name?: string; avatarUrl?: string } | null
+
   return {
     id: course._id.toString(),
     title: course.title,
     description: course.description,
     coverImageUrl: course.coverImageUrl ?? null,
+    instructor: { name: teacher?.name ?? "Instructor", avatarUrl: teacher?.avatarUrl ?? null },
+    enrolledAt: progress.enrolledAt.toISOString(),
+    nextLesson: nextLesson as { id: string; title: string; moduleTitle: string } | null,
     modules: modulesData,
     hasExam: !!exam,
     examPassed: progress.examPassed,
