@@ -2,6 +2,18 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Brand palette for the public pages (landing, auth). Literal values, so they
+   do not change with the shadcn theme or dark mode. */
+@theme {
+  --color-brand: #006633;
+  --color-brand-dark: #04421f;
+  --color-brand-soft: #eef3ef;
+  --color-gold: #a87a2c;
+  --color-paper: #f7f6f3;
+  --color-rule: #e3e1db;
+  --color-ink: #17201b;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

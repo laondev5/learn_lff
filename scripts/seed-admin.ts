@@ -13,6 +13,23 @@ if (!MONGODB_URI) {
   process.exit(1)
 }
 
+// ── Admin credentials ─────────────────────────────────────────────────────────
+// The password is never stored in this file. Create it once, out of band:
+//   SEED_ADMIN_EMAIL=... SEED_ADMIN_PASSWORD='...' pnpm seed:admin
+// A strong random one: openssl rand -base64 24
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? missing("SEED_ADMIN_EMAIL")
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? missing("SEED_ADMIN_PASSWORD")
+
+function missing(name: string): never {
+  console.error(`❌ ${name} is not set. Pass it in the shell, do not commit it to a file.`)
+  process.exit(1)
+}
+
+if (ADMIN_PASSWORD.length < 12) {
+  console.error("❌ SEED_ADMIN_PASSWORD must be at least 12 characters.")
+  process.exit(1)
+}
+
 const UserSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -29,36 +46,32 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.models.User ?? mongoose.model("User", UserSchema)
 
-// ── Admin credentials ─────────────────────────────────────────────────────────
-const ADMIN = {
-  name: "Super Admin",
-  email: "admin@lff.com",
-  password: "@#Skkywalker1998@$S",   // ← change after first login
-  role: "admin" as const,
-  mustChangePassword: false,
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
 async function seed() {
   console.log("🔌 Connecting to MongoDB…")
   await mongoose.connect(MONGODB_URI, { bufferCommands: false })
   console.log("✅ Connected")
 
-  const existing = await User.findOne({ email: ADMIN.email })
+  const existing = await User.findOne({ email: ADMIN_EMAIL })
   if (existing) {
-    console.log(`⚠️  Admin already exists: ${ADMIN.email}`)
+    console.log(`⚠️  Admin already exists: ${ADMIN_EMAIL}`)
     await mongoose.disconnect()
     return
   }
 
-  const hashedPassword = await bcryptjs.hash(ADMIN.password, 12)
+  const hashedPassword = await bcryptjs.hash(ADMIN_PASSWORD, 12)
 
-  await User.create({ ...ADMIN, hashedPassword })
+  await User.create({
+    name: "Super Admin",
+    email: ADMIN_EMAIL,
+    role: "admin",
+    mustChangePassword: true,
+    hashedPassword,
+  })
 
   console.log("🎉 Admin seeded successfully!")
-  console.log(`   Email   : ${ADMIN.email}`)
-  console.log(`   Password: ${ADMIN.password}`)
-  console.log("   ⚠️  Change your password after first login.")
+  console.log(`   Email   : ${ADMIN_EMAIL}`)
+  console.log("   Password was taken from SEED_ADMIN_PASSWORD and is not shown here.")
+  console.log("   The account must change it on first login.")
 
   await mongoose.disconnect()
 }

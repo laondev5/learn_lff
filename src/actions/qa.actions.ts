@@ -4,10 +4,24 @@ import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import CourseQuestion, { IQuestionAnswer } from "@/models/CourseQuestion.model"
 import Course from "@/models/Course.model"
+import StudentProgress from "@/models/StudentProgress.model"
 import User, { IUser } from "@/models/User.model"
 import { sendEmail, urgentQuestionEmailHtml } from "@/lib/email"
 import { revalidatePath } from "next/cache"
 import { Types } from "mongoose"
+
+type SessionUser = { id: string; role: "admin" | "teacher" | "student" }
+
+/** Students use the Q&A of courses they are enrolled in; teachers only their own. */
+async function canParticipateInCourseQA(user: SessionUser, courseId: string) {
+  if (user.role === "admin") return { allowed: true }
+  if (user.role === "teacher") {
+    return { allowed: !!(await Course.exists({ _id: courseId, teacher: user.id })) }
+  }
+  return {
+    allowed: !!(await StudentProgress.exists({ student: user.id, course: courseId })),
+  }
+}
 
 export async function askQuestion(courseId: string, data: { title: string, content: string, isUrgent: boolean }) {
   const session = await auth()
@@ -16,8 +30,13 @@ export async function askQuestion(courseId: string, data: { title: string, conte
   const { title, content, isUrgent } = data
 
   if (!title || !content) return { error: "Please fill in all fields" }
+  if (title.length > 200 || content.length > 5000) return { error: "Question is too long" }
+  if (!Types.ObjectId.isValid(courseId)) return { error: "Course not found" }
 
   await connectDB()
+
+  const access = await canParticipateInCourseQA(session.user, courseId)
+  if (!access.allowed) return { error: "Unauthorized" }
 
   const course = await Course.findById(courseId).populate<{ teacher: IUser }>("teacher").lean()
   if (!course) return { error: "Course not found" }
@@ -61,11 +80,20 @@ export async function answerQuestion(questionId: string, courseId: string, conte
   if (!session?.user) return { error: "Unauthorized" }
 
   if (!content) return { error: "Content is required" }
+  if (content.length > 5000) return { error: "Answer is too long" }
 
   await connectDB()
 
   const question = await CourseQuestion.findById(questionId)
   if (!question) return { error: "Question not found" }
+  if (question.course.toString() !== courseId) return { error: "Question not found" }
+
+  // Only the teacher who owns the course (or an admin) answers questions.
+  if (session.user.role !== "admin") {
+    if (session.user.role !== "teacher") return { error: "Unauthorized" }
+    const owns = await Course.exists({ _id: courseId, teacher: session.user.id })
+    if (!owns) return { error: "Unauthorized" }
+  }
 
   const newAnswer = {
     author: new Types.ObjectId(session.user.id),
@@ -82,7 +110,14 @@ export async function answerQuestion(questionId: string, courseId: string, conte
 }
 
 export async function getCourseQuestions(courseId: string) {
+  const session = await auth()
+  if (!session?.user) return []
+  if (!Types.ObjectId.isValid(courseId)) return []
+
   await connectDB()
+  const access = await canParticipateInCourseQA(session.user, courseId)
+  if (!access.allowed) return []
+
   const questions = await CourseQuestion.find({ course: courseId })
     .populate("author", "name role avatarUrl")
     .populate("answers.author", "name role avatarUrl")
@@ -95,12 +130,13 @@ export async function getCourseQuestions(courseId: string) {
 export async function toggleQuestionResolved(questionId: string, courseId: string) {
   const session = await auth()
   if (!session?.user) return { error: "Unauthorized" }
+  if (!Types.ObjectId.isValid(courseId)) return { error: "Course not found" }
 
   await connectDB()
   const question = await CourseQuestion.findById(questionId)
-  if (!question) return { error: "Question not found" }
+  if (!question || question.course.toString() !== courseId) return { error: "Question not found" }
 
-  // Only author or teacher can mark as resolved
+  // Only author or the teacher of the course can mark as resolved
   const course = await Course.findById(courseId).lean()
   const isTeacher = session.user.role === "teacher" && course?.teacher.toString() === session.user.id
   const isAuthor = question.author.toString() === session.user.id

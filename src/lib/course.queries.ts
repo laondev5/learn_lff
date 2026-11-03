@@ -77,7 +77,7 @@ export async function getCourseWithModules(courseId: string) {
 
 export async function getModuleWithLessons(moduleId: string) {
   const session = await auth()
-  if (!session?.user || session.user.role !== "teacher") return { error: "Not authenticated as teacher", sessionUser: session?.user }
+  if (!session?.user || session.user.role !== "teacher") return { error: "Not authenticated as teacher" }
 
   await connectDB()
   const cleanId = moduleId?.trim()
@@ -86,6 +86,9 @@ export async function getModuleWithLessons(moduleId: string) {
 
   const mod = await Module.findById(cleanId).lean()
   if (!mod) return { error: "Module not found in database", requestedId: cleanId }
+  if (!(await Course.exists({ _id: mod.course, teacher: session.user.id }))) {
+    return { error: "Module not found in database", requestedId: cleanId }
+  }
 
   const lessons = await Lesson.find({ module: cleanId }).sort({ order: 1 }).lean()
   const lessonsWithTests = await Promise.all(
@@ -125,6 +128,7 @@ export async function getLessonWithTest(lessonId: string) {
   await connectDB()
   const lesson = await Lesson.findById(lessonId).lean()
   if (!lesson) return null
+  if (!(await Course.exists({ _id: lesson.course, teacher: session.user.id }))) return null
 
   const test = await Test.findOne({ lesson: lessonId }).lean()
 
@@ -178,6 +182,8 @@ export async function getCourseExam(courseId: string) {
   if (!session?.user || session.user.role !== "teacher") return null
 
   await connectDB()
+  if (!(await Course.exists({ _id: courseId, teacher: session.user.id }))) return null
+
   const exam = await Assessment.findOne({ course: courseId, type: "exam" }).lean()
   if (!exam) return null
 

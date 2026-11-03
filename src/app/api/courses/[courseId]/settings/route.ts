@@ -12,11 +12,18 @@ export async function GET(
   try {
     const { courseId } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || (session.user.role !== "teacher" && session.user.role !== "admin")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await connectDB()
+
+    if (
+      session.user.role === "teacher" &&
+      !(await Course.exists({ _id: courseId, teacher: session.user.id }))
+    ) {
+      return NextResponse.json({ error: "Course not found or unauthorized" }, { status: 404 })
+    }
 
     const settings = await CourseSettings.findOne({ course: courseId })
     if (!settings) {

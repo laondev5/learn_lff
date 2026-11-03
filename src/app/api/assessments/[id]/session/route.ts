@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import Assessment from "@/models/Assessment.model"
-import ProctoringSession from "@/models/ProctoringSession.model"
+import ProctoringSession, { IProctoringSession } from "@/models/ProctoringSession.model"
 import Submission from "@/models/Submission.model"
 import StudentProgress from "@/models/StudentProgress.model"
+import { isPastExamDeadline } from "@/lib/exam-window"
 import { Types } from "mongoose"
 
 /**
@@ -18,7 +19,7 @@ export async function POST(
   try {
     const { id } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== "student") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -47,40 +48,43 @@ export async function POST(
       return NextResponse.json({ error: "You are not enrolled in this course" }, { status: 403 })
     }
 
-    // 3. Check for an existing active session to resume
-    let proctoringSession = await ProctoringSession.findOne({
+    // 3. Reuse an in-progress session, unless the server-side deadline passed
+    const existingSession = await ProctoringSession.findOne({
       assessment: assessmentId,
       student: studentId,
-      status: "active",
     })
 
-    if (proctoringSession) {
-      // Session found, return it for resumption
-      // We also return the questions but filter out correct answers
-      const sanitizedQuestions = assessment.questions.map((q) => ({
-        _id: q._id,
-        text: q.text,
-        type: q.type,
-        options: q.options,
-        points: q.points,
-      }))
+    if (existingSession?.status === "active") {
+      if (!isPastExamDeadline(assessment, existingSession)) {
+        const resumedQuestions = assessment.questions.map((q) => ({
+          _id: q._id,
+          text: q.text,
+          type: q.type,
+          options: q.options,
+          points: q.points,
+        }))
 
-      return NextResponse.json({
-        success: true,
-        isNew: false,
-        session: proctoringSession,
-        assessment: {
-          title: assessment.title,
-          type: assessment.type,
-          durationMinutes: assessment.durationMinutes,
-          totalMarks: assessment.totalMarks,
-          proctoringEnabled: assessment.proctoringEnabled,
-          questions: sanitizedQuestions,
-        },
-      })
+        return NextResponse.json({
+          success: true,
+          isNew: false,
+          session: existingSession,
+          assessment: {
+            title: assessment.title,
+            type: assessment.type,
+            durationMinutes: assessment.durationMinutes,
+            totalMarks: assessment.totalMarks,
+            proctoringEnabled: assessment.proctoringEnabled,
+            questions: resumedQuestions,
+          },
+        })
+      }
+
+      existingSession.status = "expired"
+      existingSession.endTime = new Date()
+      await existingSession.save()
     }
 
-    // 4. If no active session, check attempt limits
+    // 4. If no resumable session, check attempt limits
     const submissionCount = await Submission.countDocuments({
       student: studentId,
       assessment: assessmentId,
@@ -92,17 +96,35 @@ export async function POST(
       }, { status: 403 })
     }
 
-    // 5. Create new proctoring session
-    proctoringSession = await ProctoringSession.create({
-      assessment: assessmentId,
-      student: studentId,
-      course: assessment.course,
-      status: "active",
+    // 5. Open a fresh attempt. One document per student + assessment is allowed,
+    // so reset the previous one instead of inserting.
+    const freshAttempt = {
+      status: "active" as const,
       startTime: new Date(),
+      endTime: undefined,
       warnings: 0,
-      maxWarnings: 3, // Can be dynamic based on CourseSettings if needed
+      maxWarnings: 3,
       violationLog: [],
-    })
+      microphoneActive: false,
+      fullscreenActive: false,
+      tabHidden: false,
+      lastPolledAt: undefined,
+      answersSnapshot: {},
+    }
+
+    let proctoringSession: IProctoringSession
+    if (existingSession) {
+      existingSession.set(freshAttempt)
+      await existingSession.save()
+      proctoringSession = existingSession
+    } else {
+      proctoringSession = await ProctoringSession.create({
+        assessment: assessmentId,
+        student: studentId,
+        course: assessment.course,
+        ...freshAttempt,
+      })
+    }
 
     // 6. Return new session and sanitized assessment
     const sanitizedQuestions = assessment.questions.map((q) => ({
@@ -144,7 +166,7 @@ export async function GET(
   try {
     const { id } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== "student") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

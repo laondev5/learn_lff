@@ -94,7 +94,7 @@ export function ChatShell({
     const ids = groupIds.split(",").filter(Boolean)
     const timers = typingTimers.current
     const channels = ids.map((forumId) => {
-      const channel = pusher.subscribe(`forum-${forumId}`)
+      const channel = pusher.subscribe(`private-forum-${forumId}`)
 
       const onMessage = (msg: ChatMessage) => {
         stopTyping(forumId, msg.sender.id)

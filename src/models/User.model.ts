@@ -42,6 +42,8 @@ export interface IUser extends Document {
   onboardingEmailSentAt?: Date
   onboardingEmailFailedAt?: Date
   passwordChangedAt?: Date
+  passwordResetTokenHash?: string
+  passwordResetExpiresAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -89,6 +91,8 @@ const UserSchema = new Schema<IUser>(
     onboardingEmailSentAt: { type: Date },
     onboardingEmailFailedAt: { type: Date },
     passwordChangedAt: { type: Date },
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetExpiresAt: { type: Date },
   },
   { timestamps: true }
 )

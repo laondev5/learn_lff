@@ -24,5 +24,6 @@ declare module "next-auth/jwt" {
     role: UserRole
     cohort?: string
     mustChangePassword?: boolean
+    lastCheckedAt?: number
   }
 }

@@ -9,5 +9,6 @@ export const pusherServer = new Pusher({
   useTLS: true,
 })
 
-export const forumChannel = (forumId: string) => `forum-${forumId}`
+/** Private: only members whose access /api/pusher/auth checks can subscribe. */
+export const forumChannel = (forumId: string) => `private-forum-${forumId}`
 export const forumPresenceChannel = (forumId: string) => `presence-forum-${forumId}`

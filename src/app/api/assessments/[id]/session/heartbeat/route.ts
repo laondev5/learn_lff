@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
+import Assessment from "@/models/Assessment.model"
 import ProctoringSession from "@/models/ProctoringSession.model"
 import { violationReportSchema } from "@/lib/validations/assessment"
 import { processAssessmentSubmission } from "@/lib/assessment.service"
+import { isPastExamDeadline } from "@/lib/exam-window"
 import { Types } from "mongoose"
 
 /**
@@ -17,7 +19,7 @@ export async function POST(
   try {
     const { id } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== "student") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -29,14 +31,51 @@ export async function POST(
 
     await connectDB()
 
-    const proctoringSession = await ProctoringSession.findOne({
-      assessment: id,
-      student: session.user.id,
-      status: "active",
-    })
+    const [proctoringSession, assessment] = await Promise.all([
+      ProctoringSession.findOne({
+        assessment: id,
+        student: session.user.id,
+        status: "active",
+      }),
+      Assessment.findById(id).select("durationMinutes"),
+    ])
 
     if (!proctoringSession) {
       return NextResponse.json({ error: "No active session found" }, { status: 404 })
+    }
+
+    // 0. The server clock, not the student's browser, owns the exam deadline.
+    if (assessment && isPastExamDeadline(assessment, proctoringSession)) {
+      proctoringSession.status = "expired"
+      proctoringSession.endTime = new Date()
+      await proctoringSession.save()
+
+      const snapshot = proctoringSession.answersSnapshot || {}
+      const answers = Object.entries(snapshot).map(([qId, ans]) => ({
+        questionId: qId,
+        answer: String(ans)
+      }))
+
+      const result = await processAssessmentSubmission({
+        assessmentId: id,
+        studentId: session.user.id,
+        answers,
+        isAutoSubmit: true,
+        autoSubmittedReason: "Time limit exceeded",
+        proctoringSessionId: (proctoringSession._id as Types.ObjectId).toString()
+      })
+
+      return NextResponse.json({
+        success: true,
+        status: "terminated",
+        autoSubmitted: true,
+        message: "Time limit exceeded. Session auto-submitted.",
+        result: {
+          score: result.score,
+          percentageScore: result.percentageScore,
+          passed: result.passed
+        }
+      })
     }
 
     // 1. Update basic proctoring state

@@ -22,6 +22,22 @@ async function ownsCourse(teacherId: string, courseId: Types.ObjectId | string) 
   return !!(await Course.exists({ _id: courseId, teacher: teacherId }))
 }
 
+/** Course id of a module, only when the requesting teacher owns the parent course. */
+async function ownedCourseOfModule(teacherId: string, moduleId: string) {
+  if (!Types.ObjectId.isValid(moduleId)) return null
+  const mod = await Module.findById(moduleId).select("course").lean()
+  if (!mod) return null
+  return (await ownsCourse(teacherId, mod.course)) ? mod.course.toString() : null
+}
+
+/** Course id of a lesson, only when the requesting teacher owns the parent course. */
+async function ownedCourseOfLesson(teacherId: string, lessonId: string) {
+  if (!Types.ObjectId.isValid(lessonId)) return null
+  const lesson = await Lesson.findById(lessonId).select("course").lean()
+  if (!lesson) return null
+  return (await ownsCourse(teacherId, lesson.course)) ? lesson.course.toString() : null
+}
+
 function getActionErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) {
     if (error.message.includes("ETIMEDOUT")) {
@@ -225,6 +241,8 @@ export async function createModule(courseId: string, formData: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
+  if (!(await ownsCourse(session.user.id, courseId))) return { error: "Course not found" }
+
   const count = await Module.countDocuments({ course: courseId })
   const mod = await Module.create({
     ...parsed.data,
@@ -247,11 +265,11 @@ export async function updateModule(moduleId: string, formData: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
-  const mod = await Module.findById(moduleId).lean()
-  if (!mod) return { error: "Module not found" }
+  const courseId = await ownedCourseOfModule(session.user.id, moduleId)
+  if (!courseId) return { error: "Module not found" }
 
   await Module.findByIdAndUpdate(moduleId, parsed.data)
-  revalidatePath(`/teacher/courses/${mod.course.toString()}`)
+  revalidatePath(`/teacher/courses/${courseId}`)
   return { success: true }
 }
 
@@ -260,14 +278,17 @@ export async function toggleModulePublished(moduleId: string) {
   if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
   await connectDB()
+  const courseId = await ownedCourseOfModule(session.user.id, moduleId)
+  if (!courseId) return { error: "Module not found" }
+
   const mod = await Module.findById(moduleId)
   if (!mod) return { error: "Module not found" }
 
   mod.isPublished = !mod.isPublished
   await mod.save()
 
-  revalidatePath(`/teacher/courses/${mod.course.toString()}`)
-  revalidatePath(`/student/courses/${mod.course.toString()}`)
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath(`/student/courses/${courseId}`)
   return { success: true }
 }
 
@@ -341,8 +362,8 @@ export async function createLesson(moduleId: string, formData: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
-  const mod = await Module.findById(moduleId).lean()
-  if (!mod) return { error: "Module not found" }
+  const courseId = await ownedCourseOfModule(session.user.id, moduleId)
+  if (!courseId) return { error: "Module not found" }
 
   const count = await Lesson.countDocuments({ module: moduleId })
   const lesson = await Lesson.create({
@@ -354,11 +375,11 @@ export async function createLesson(moduleId: string, formData: FormData) {
     youtubeVideoId: parsed.data.youtubeVideoId || undefined,
     videoCues: [],
     module: moduleId,
-    course: mod.course,
+    course: courseId,
     order: count + 1,
   })
 
-  revalidatePath(`/teacher/courses/${mod.course.toString()}/modules/${moduleId}`)
+  revalidatePath(`/teacher/courses/${courseId}/modules/${moduleId}`)
   return { success: true, lessonId: lesson._id.toString() }
 }
 
@@ -417,8 +438,10 @@ export async function saveVideoCues(
     if (!parsed.success) return { error: parsed.error.issues[0].message }
 
     await connectDB()
-    const lesson = await Lesson.findById(lessonId).lean()
-    if (!lesson) return { error: "Lesson not found" }
+    const lesson = await Lesson.findById(lessonId).select("course module").lean()
+    if (!lesson || !(await ownsCourse(session.user.id, lesson.course))) {
+      return { error: "Lesson not found" }
+    }
 
     await Lesson.findByIdAndUpdate(lessonId, { videoCues: parsed.data })
 
@@ -493,6 +516,7 @@ export async function toggleLessonPublished(lessonId: string) {
   await connectDB()
   const lesson = await Lesson.findById(lessonId)
   if (!lesson) return { error: "Lesson not found" }
+  if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
   lesson.isPublished = !lesson.isPublished
   await lesson.save()
@@ -563,8 +587,10 @@ export async function saveTest(lessonId: string, data: z.infer<typeof testSchema
     if (!parsed.success) return { error: parsed.error.issues[0].message }
 
     await connectDB()
-    const lesson = await Lesson.findById(lessonId).lean()
-    if (!lesson) return { error: "Lesson not found" }
+    const lesson = await Lesson.findById(lessonId).select("course module").lean()
+    if (!lesson || !(await ownsCourse(session.user.id, lesson.course))) {
+      return { error: "Lesson not found" }
+    }
 
     await Test.findOneAndUpdate(
       { lesson: lessonId },
@@ -593,8 +619,10 @@ export async function deleteTest(lessonId: string) {
   if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
   await connectDB()
-  const lesson = await Lesson.findById(lessonId).lean()
-  if (!lesson) return { error: "Lesson not found" }
+  const lesson = await Lesson.findById(lessonId).select("course module").lean()
+  if (!lesson || !(await ownsCourse(session.user.id, lesson.course))) {
+    return { error: "Lesson not found" }
+  }
 
   await Test.deleteOne({ lesson: lessonId })
 
@@ -620,6 +648,8 @@ export async function saveExam(courseId: string, data: z.infer<typeof examSchema
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   await connectDB()
+  if (!(await ownsCourse(session.user.id, courseId))) return { error: "Course not found" }
+
   await Exam.findOneAndUpdate(
     { course: courseId },
     {

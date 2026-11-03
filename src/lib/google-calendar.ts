@@ -1,7 +1,16 @@
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto"
 import { google } from "googleapis"
 import { connectDB } from "./mongoose"
 import User from "@/models/User.model"
 import { getAppUrl } from "@/lib/app-url"
+
+export const GOOGLE_STATE_COOKIE = "lff_google_oauth_state"
+export const GOOGLE_STATE_MAX_AGE_SECONDS = 600
+
+const CALENDAR_SCOPES = [
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events",
+]
 
 function getGoogleRedirectUri() {
   return process.env.GOOGLE_REDIRECT_URI || `${getAppUrl()}/api/auth/callback/google`
@@ -15,18 +24,33 @@ function createGoogleOAuthClient() {
   )
 }
 
-export function getAuthUrl() {
+export function createGoogleAuthUrl() {
   const oauth2Client = createGoogleOAuthClient()
-  const scopes = [
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/calendar.events",
-  ]
+  const state = randomBytes(24).toString("base64url")
 
-  return oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: scopes,
-    prompt: "consent", // Force consent to ensure we get a refresh token
-  })
+  return {
+    state,
+    url: oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: CALENDAR_SCOPES,
+      prompt: "consent", // Force consent to ensure we get a refresh token
+      state,
+    }),
+  }
+}
+
+/**
+ * The state nonce lives in an http-only cookie, so only this browser can pair a
+ * redirect with the value Google echoes back. Without it, an attacker can trick a
+ * signed-in teacher into linking the attacker's Google account to their profile.
+ */
+export function verifyGoogleAuthState(incoming: string | null, cookie: string | undefined) {
+  if (!incoming || !cookie) return false
+
+  const a = createHash("sha256").update(incoming).digest()
+  const b = createHash("sha256").update(cookie).digest()
+
+  return timingSafeEqual(a, b)
 }
 
 export async function getTokensFromCode(code: string) {

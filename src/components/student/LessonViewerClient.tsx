@@ -19,7 +19,6 @@ interface CueQuestion {
   text: string
   type: QuestionType
   options: string[]
-  correctAnswer: string
   points: number
 }
 
@@ -52,6 +51,7 @@ interface LessonData {
   lessonType: string
   content: string
   studentNotes?: string
+  videoKind: "cloudinary" | "youtube" | "direct" | null
   videoUrl: string | null
   youtubeVideoId: string | null
   videoCues: VideoCue[]
@@ -121,19 +121,6 @@ export function LessonViewerClient({
   }
 
   const isVideoLesson = lesson.lessonType === "video"
-  const isCloudinaryVideo = lesson.videoUrl?.includes("cloudinary.com") ?? false
-
-  function resolveYouTubeId(): string | null {
-    if (isCloudinaryVideo) return null
-    if (lesson.youtubeVideoId) return lesson.youtubeVideoId
-    if (lesson.videoUrl) {
-      const match = lesson.videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?]+)/)
-      return match ? match[1] : null
-    }
-    return null
-  }
-
-  const youtubeVideoId = resolveYouTubeId()
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -153,23 +140,25 @@ export function LessonViewerClient({
       <h1 className="text-2xl font-bold">{lesson.title}</h1>
 
       {/* Cloudinary video lesson */}
-      {isVideoLesson && isCloudinaryVideo && lesson.videoUrl && (
+      {isVideoLesson && lesson.videoKind === "cloudinary" && lesson.videoUrl && (
         <CloudinaryVideoPlayer
+          lessonId={lesson.id}
           videoUrl={lesson.videoUrl}
           cues={lesson.videoCues}
         />
       )}
 
       {/* YouTube video lesson */}
-      {isVideoLesson && !isCloudinaryVideo && youtubeVideoId && (
+      {isVideoLesson && lesson.videoKind === "youtube" && lesson.youtubeVideoId && (
         <YouTubePlayerWithQuiz
-          videoId={youtubeVideoId}
+          lessonId={lesson.id}
+          videoId={lesson.youtubeVideoId}
           cues={lesson.videoCues}
         />
       )}
 
       {/* Fallback: direct video source without download option */}
-      {isVideoLesson && !isCloudinaryVideo && !youtubeVideoId && lesson.videoUrl && (
+      {isVideoLesson && lesson.videoKind === "direct" && lesson.videoUrl && (
         <div className="aspect-video rounded-md overflow-hidden border bg-black">
           <video
             src={lesson.videoUrl}

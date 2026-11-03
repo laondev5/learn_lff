@@ -31,7 +31,10 @@ export interface IAnswer {
 const AnswerSchema = new Schema<IAnswer>(
   {
     questionId: { type: Schema.Types.ObjectId, required: true },
-    answer: { type: String, required: true },
+    // A skipped question grades as an empty answer, so it must stay valid:
+    // mongoose treats "" as unset for `required` and would reject the whole
+    // submission, turning "student left one question blank" into a 500.
+    answer: { type: String, default: "" },
     isCorrect: { type: Boolean },
     pointsAwarded: { type: Number, min: 0 },
   },

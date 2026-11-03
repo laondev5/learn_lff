@@ -11,18 +11,28 @@ export async function GET(
   try {
     const { id } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || (session.user.role !== "teacher" && session.user.role !== "admin")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await connectDB()
 
     const assessment = await Assessment.findById(id)
-      .populate("course", "title")
+      .populate("course", "title teacher")
       .populate("module", "title")
 
     if (!assessment) {
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+    }
+
+    // Assessments carry the correct answers: only the teacher who owns the
+    // course (or an admin) may read one.
+    if (session.user.role === "teacher") {
+      const course = assessment.course as unknown as { teacher?: string } | null
+      const ownerId = course?.teacher?.toString()
+      if (ownerId !== session.user.id && assessment.createdBy?.toString() !== session.user.id) {
+        return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
+      }
     }
 
     return NextResponse.json({ assessment })

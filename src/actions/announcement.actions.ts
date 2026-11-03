@@ -44,7 +44,7 @@ export async function deleteAnnouncement(announcementId: string) {
   if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
   await connectDB()
-  const ann = await Announcement.findById(announcementId).lean()
+  const ann = await Announcement.findOne({ _id: announcementId, teacher: session.user.id }).lean()
   if (!ann) return { error: "Not found" }
 
   await Announcement.findByIdAndDelete(announcementId)
@@ -57,6 +57,9 @@ export async function getCourseAnnouncements(courseId: string) {
   if (!session?.user || session.user.role !== "teacher") return []
 
   await connectDB()
+  const course = await Course.findOne({ _id: courseId, teacher: session.user.id }).lean()
+  if (!course) return []
+
   const anns = await Announcement.find({ course: courseId })
     .sort({ createdAt: -1 })
     .lean()

@@ -1,15 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { CheckCircle2, XCircle } from "lucide-react"
+import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { gradeVideoCueAnswers } from "@/actions/student.actions"
 
 interface CueQuestion {
   text: string
   type: "mcq" | "true_false" | "short_answer"
   options: string[]
-  correctAnswer: string
   points: number
 }
 
@@ -21,12 +21,13 @@ interface VideoCue {
 }
 
 interface Props {
+  lessonId: string
   videoId: string
   cues: VideoCue[]
   onAllCuesComplete?: () => void
 }
 
-type CueResult = "pending" | "correct" | "incorrect"
+type CueResult = { correct: boolean; correctAnswer: string }
 
 declare global {
   interface Window {
@@ -54,7 +55,7 @@ declare global {
   }
 }
 
-export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Props) {
+export function YouTubePlayerWithQuiz({ lessonId, videoId, cues, onAllCuesComplete }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -62,6 +63,7 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
   const [activeCueIdx, setActiveCueIdx] = useState<number | null>(null)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [marking, setMarking] = useState(false)
   const [cueResults, setCueResults] = useState<Record<number, CueResult>>({})
   const [shownCues, setShownCues] = useState<Set<number>>(new Set())
   const [playerReady, setPlayerReady] = useState(false)
@@ -73,6 +75,7 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
     setActiveCueIdx(idx)
     setAnswers({})
     setSubmitted(false)
+    setCueResults({})
   }, [])
 
   const startPolling = useCallback(() => {
@@ -133,21 +136,22 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
     if (playerReady && intervalRef.current === null) startPolling()
   }, [playerReady, startPolling])
 
-  function handleSubmitCue() {
-    if (activeCueIdx === null) return
+  async function handleSubmitCue() {
+    if (activeCueIdx === null || marking) return
     const cue = sortedCues[activeCueIdx]
-    let allCorrect = true
+    setMarking(true)
+    const payload: Record<string, string> = {}
+    for (const [qi, answer] of Object.entries(answers)) payload[qi] = answer
+    const result = await gradeVideoCueAnswers(lessonId, cue.timestamp, payload)
+    setMarking(false)
+    if (result.error || !result.results) return
     const results: Record<number, CueResult> = {}
-    cue.questions.forEach((q, qi) => {
-      const studentAnswer = (answers[qi] ?? "").trim().toLowerCase()
-      const correct = q.correctAnswer.trim().toLowerCase()
-      const isCorrect = studentAnswer === correct
-      results[qi] = isCorrect ? "correct" : "incorrect"
-      if (!isCorrect) allCorrect = false
+    result.results.forEach((r, qi) => {
+      results[qi] = r
     })
     setCueResults(results)
     setSubmitted(true)
-    if (allCorrect) {
+    if (result.allCorrect) {
       setTimeout(() => dismissCue(), 1500)
     }
   }
@@ -217,12 +221,13 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
                       {q.options.map((opt) => {
                         const isSelected = answers[qi] === opt
                         const result = cueResults[qi]
-                        const isCorrectOpt = opt.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                        const isCorrectOpt = !!result &&
+                          opt.trim().toLowerCase() === result.correctAnswer.trim().toLowerCase()
                         let optClass = "border-border"
                         if (submitted && result) {
-                          if (isSelected && result === "correct") optClass = "border-green-500 bg-green-500/10"
-                          else if (isSelected && result === "incorrect") optClass = "border-destructive bg-destructive/10"
-                          else if (!isSelected && isCorrectOpt && result === "incorrect") optClass = "border-green-500/50 bg-green-500/5"
+                          if (isSelected && result.correct) optClass = "border-green-500 bg-green-500/10"
+                          else if (isSelected && !result.correct) optClass = "border-destructive bg-destructive/10"
+                          else if (!isSelected && isCorrectOpt && !result.correct) optClass = "border-green-500/50 bg-green-500/5"
                         } else if (isSelected) {
                           optClass = "border-primary bg-primary/10"
                         }
@@ -244,8 +249,8 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
                               {isSelected && <div className="h-2 w-2 rounded-full bg-primary" />}
                             </div>
                             <span className="text-sm">{opt}</span>
-                            {submitted && isSelected && result === "correct" && <CheckCircle2 className="ml-auto h-4 w-4 text-green-500" />}
-                            {submitted && isSelected && result === "incorrect" && <XCircle className="ml-auto h-4 w-4 text-destructive" />}
+                            {submitted && isSelected && result?.correct && <CheckCircle2 className="ml-auto h-4 w-4 text-green-500" />}
+                            {submitted && isSelected && result && !result.correct && <XCircle className="ml-auto h-4 w-4 text-destructive" />}
                           </label>
                         )
                       })}
@@ -256,12 +261,13 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
                       {["True", "False"].map((opt) => {
                         const isSelected = answers[qi] === opt
                         const result = cueResults[qi]
-                        const isCorrectOpt = opt.toLowerCase() === q.correctAnswer.toLowerCase()
+                        const isCorrectOpt = !!result &&
+                          opt.toLowerCase() === result.correctAnswer.toLowerCase()
                         let optClass = "border-border"
                         if (submitted && result) {
-                          if (isSelected && result === "correct") optClass = "border-green-500 bg-green-500/10"
-                          else if (isSelected && result === "incorrect") optClass = "border-destructive bg-destructive/10"
-                          else if (!isSelected && isCorrectOpt && result === "incorrect") optClass = "border-green-500/50"
+                          if (isSelected && result.correct) optClass = "border-green-500 bg-green-500/10"
+                          else if (isSelected && !result.correct) optClass = "border-destructive bg-destructive/10"
+                          else if (!isSelected && isCorrectOpt && !result.correct) optClass = "border-green-500/50"
                         } else if (isSelected) {
                           optClass = "border-primary bg-primary/10"
                         }
@@ -289,16 +295,16 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
                         value={answers[qi] ?? ""}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [qi]: e.target.value }))}
                       />
-                      {submitted && cueResults[qi] === "incorrect" && (
+                      {submitted && cueResults[qi] && !cueResults[qi].correct && (
                         <p className="text-xs text-muted-foreground">
-                          Correct answer: <span className="font-medium text-foreground">{q.correctAnswer}</span>
+                          Correct answer: <span className="font-medium text-foreground">{cueResults[qi].correctAnswer}</span>
                         </p>
                       )}
                     </div>
                   )}
                   {submitted && cueResults[qi] && (
-                    <p className={`text-xs font-medium ${cueResults[qi] === "correct" ? "text-green-600" : "text-destructive"}`}>
-                      {cueResults[qi] === "correct" ? "Correct!" : "Incorrect"}
+                    <p className={`text-xs font-medium ${cueResults[qi].correct ? "text-green-600" : "text-destructive"}`}>
+                      {cueResults[qi].correct ? "Correct!" : "Incorrect"}
                     </p>
                   )}
                 </div>
@@ -308,9 +314,10 @@ export function YouTubePlayerWithQuiz({ videoId, cues, onAllCuesComplete }: Prop
                 {!submitted ? (
                   <Button
                     onClick={handleSubmitCue}
-                    disabled={Object.keys(answers).length < activeCue.questions.length}
+                    disabled={marking || Object.keys(answers).length < activeCue.questions.length}
                     className="flex-1"
                   >
+                    {marking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Submit Answer{activeCue.questions.length > 1 ? "s" : ""}
                   </Button>
                 ) : (

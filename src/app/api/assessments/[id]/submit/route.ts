@@ -3,8 +3,11 @@ import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import Assessment from "@/models/Assessment.model"
 import ProctoringSession from "@/models/ProctoringSession.model"
+import StudentProgress from "@/models/StudentProgress.model"
+import Submission from "@/models/Submission.model"
 import { submissionSchema } from "@/lib/validations/assessment"
 import { processAssessmentSubmission } from "@/lib/assessment.service"
+import { isPastExamDeadline } from "@/lib/exam-window"
 import { Types } from "mongoose"
 
 /**
@@ -18,7 +21,7 @@ export async function POST(
   try {
     const { id } = await context.params
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || session.user.role !== "student") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -52,13 +55,42 @@ export async function POST(
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 })
     }
 
+    if (!assessment.isPublished) {
+      return NextResponse.json({ error: "Assessment is not available" }, { status: 403 })
+    }
+
+    // Only a student enrolled in the course may submit, and only from a session
+    // they actually started.
+    const enrolled = await StudentProgress.exists({ student: studentId, course: assessment.course })
+    if (!enrolled) {
+      return NextResponse.json({ error: "You are not enrolled in this course" }, { status: 403 })
+    }
+
+    if (!proctoringSession) {
+      return NextResponse.json({ error: "No active session to submit" }, { status: 400 })
+    }
+
+    if (isPastExamDeadline(assessment, proctoringSession)) {
+      proctoringSession.status = "expired"
+      proctoringSession.endTime = new Date()
+      await proctoringSession.save()
+      return NextResponse.json({ error: "Time limit exceeded for this attempt" }, { status: 403 })
+    }
+
+    const attemptsUsed = await Submission.countDocuments({
+      student: studentId,
+      assessment: assessmentId,
+    })
+    if (attemptsUsed >= assessment.maxAttempts) {
+      return NextResponse.json({
+        error: `You have reached the maximum number of attempts (${assessment.maxAttempts}) for this assessment.`,
+      }, { status: 403 })
+    }
+
     // 2. Prepare Answers for Grading
     let answers: { questionId: string; answer: string }[] = []
     
     if (isAutoSubmit) {
-      if (!proctoringSession) {
-        return NextResponse.json({ error: "No active session to auto-submit" }, { status: 400 })
-      }
       const snapshot = proctoringSession.answersSnapshot || {}
       answers = Object.entries(snapshot).map(([qId, ans]) => ({
         questionId: qId,
@@ -79,7 +111,7 @@ export async function POST(
       answers,
       isAutoSubmit,
       autoSubmittedReason,
-      proctoringSessionId: proctoringSession?._id ? (proctoringSession._id as Types.ObjectId).toString() : undefined
+      proctoringSessionId: (proctoringSession._id as Types.ObjectId).toString()
     })
 
     return NextResponse.json({
@@ -96,7 +128,6 @@ export async function POST(
 
   } catch (error: unknown) {
     console.error("[SUBMISSION_POST]", error)
-    const message = error instanceof Error ? error.message : "Internal Server Error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

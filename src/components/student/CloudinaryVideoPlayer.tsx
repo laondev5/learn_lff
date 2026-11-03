@@ -1,15 +1,15 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CheckCircle2, XCircle } from "lucide-react"
+import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { gradeVideoCueAnswers } from "@/actions/student.actions"
 
 interface CueQuestion {
   text: string
   type: "mcq" | "true_false" | "short_answer"
   options: string[]
-  correctAnswer: string
   points: number
 }
 
@@ -21,14 +21,15 @@ interface VideoCue {
 }
 
 interface Props {
+  lessonId: string
   videoUrl: string
   cues: VideoCue[]
   onAllCuesComplete?: () => void
 }
 
-type CueResult = "pending" | "correct" | "incorrect"
+type CueResult = { correct: boolean; correctAnswer: string }
 
-export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Props) {
+export function CloudinaryVideoPlayer({ lessonId, videoUrl, cues, onAllCuesComplete }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   // Use refs for values read inside event handlers to avoid stale closures
@@ -38,6 +39,7 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
   const [activeCueIdx, setActiveCueIdx] = useState<number | null>(null)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [marking, setMarking] = useState(false)
   const [cueResults, setCueResults] = useState<Record<number, CueResult>>({})
   const [shownCueKeys, setShownCueKeys] = useState<Set<number>>(new Set())
 
@@ -62,21 +64,22 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
     }
   }
 
-  function handleSubmitCue() {
-    if (activeCueIdx === null) return
+  async function handleSubmitCue() {
+    if (activeCueIdx === null || marking) return
     const cue = sortedCues[activeCueIdx]
-    let allCorrect = true
+    setMarking(true)
+    const payload: Record<string, string> = {}
+    for (const [qi, answer] of Object.entries(answers)) payload[qi] = answer
+    const result = await gradeVideoCueAnswers(lessonId, cue.timestamp, payload)
+    setMarking(false)
+    if (result.error || !result.results) return
     const results: Record<number, CueResult> = {}
-    cue.questions.forEach((q, qi) => {
-      const studentAnswer = (answers[qi] ?? "").trim().toLowerCase()
-      const correct = q.correctAnswer.trim().toLowerCase()
-      const isCorrect = studentAnswer === correct
-      results[qi] = isCorrect ? "correct" : "incorrect"
-      if (!isCorrect) allCorrect = false
+    result.results.forEach((r, qi) => {
+      results[qi] = r
     })
     setCueResults(results)
     setSubmitted(true)
-    if (allCorrect) {
+    if (result.allCorrect) {
       setTimeout(() => dismissCue(), 1500)
     }
   }
@@ -100,9 +103,7 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
       <div className="aspect-video rounded-md overflow-hidden border bg-black">
         <video
           ref={videoRef}
-          src={videoUrl.includes("res.cloudinary.com") && videoUrl.includes("/video/upload/") && !videoUrl.includes("c_limit,")
-            ? videoUrl.replace("/video/upload/", "/video/upload/c_limit,w_1280,h_720,q_auto,vc_auto/")
-            : videoUrl}
+          src={videoUrl}
           controls
           className="w-full h-full"
           onTimeUpdate={handleTimeUpdate}
@@ -159,12 +160,13 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
                       {q.options.map((opt) => {
                         const isSelected = answers[qi] === opt
                         const result = cueResults[qi]
-                        const isCorrectOpt = opt.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+                        const isCorrectOpt = !!result &&
+                          opt.trim().toLowerCase() === result.correctAnswer.trim().toLowerCase()
                         let optClass = "border-border"
                         if (submitted && result) {
-                          if (isSelected && result === "correct") optClass = "border-green-500 bg-green-500/10"
-                          else if (isSelected && result === "incorrect") optClass = "border-destructive bg-destructive/10"
-                          else if (!isSelected && isCorrectOpt && result === "incorrect") optClass = "border-green-500/50 bg-green-500/5"
+                          if (isSelected && result.correct) optClass = "border-green-500 bg-green-500/10"
+                          else if (isSelected && !result.correct) optClass = "border-destructive bg-destructive/10"
+                          else if (!isSelected && isCorrectOpt && !result.correct) optClass = "border-green-500/50 bg-green-500/5"
                         } else if (isSelected) {
                           optClass = "border-primary bg-primary/10"
                         }
@@ -186,8 +188,8 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
                               {isSelected && <div className="h-2 w-2 rounded-full bg-primary" />}
                             </div>
                             <span className="text-sm">{opt}</span>
-                            {submitted && isSelected && result === "correct" && <CheckCircle2 className="ml-auto h-4 w-4 text-green-500" />}
-                            {submitted && isSelected && result === "incorrect" && <XCircle className="ml-auto h-4 w-4 text-destructive" />}
+                            {submitted && isSelected && result?.correct && <CheckCircle2 className="ml-auto h-4 w-4 text-green-500" />}
+                            {submitted && isSelected && result && !result.correct && <XCircle className="ml-auto h-4 w-4 text-destructive" />}
                           </label>
                         )
                       })}
@@ -199,12 +201,13 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
                       {["True", "False"].map((opt) => {
                         const isSelected = answers[qi] === opt
                         const result = cueResults[qi]
-                        const isCorrectOpt = opt.toLowerCase() === q.correctAnswer.toLowerCase()
+                        const isCorrectOpt = !!result &&
+                          opt.toLowerCase() === result.correctAnswer.toLowerCase()
                         let optClass = "border-border"
                         if (submitted && result) {
-                          if (isSelected && result === "correct") optClass = "border-green-500 bg-green-500/10"
-                          else if (isSelected && result === "incorrect") optClass = "border-destructive bg-destructive/10"
-                          else if (!isSelected && isCorrectOpt && result === "incorrect") optClass = "border-green-500/50"
+                          if (isSelected && result.correct) optClass = "border-green-500 bg-green-500/10"
+                          else if (isSelected && !result.correct) optClass = "border-destructive bg-destructive/10"
+                          else if (!isSelected && isCorrectOpt && !result.correct) optClass = "border-green-500/50"
                         } else if (isSelected) {
                           optClass = "border-primary bg-primary/10"
                         }
@@ -233,17 +236,17 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
                         value={answers[qi] ?? ""}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [qi]: e.target.value }))}
                       />
-                      {submitted && cueResults[qi] === "incorrect" && (
+                      {submitted && cueResults[qi] && !cueResults[qi].correct && (
                         <p className="text-xs text-muted-foreground">
-                          Correct answer: <span className="font-medium text-foreground">{q.correctAnswer}</span>
+                          Correct answer: <span className="font-medium text-foreground">{cueResults[qi].correctAnswer}</span>
                         </p>
                       )}
                     </div>
                   )}
 
                   {submitted && cueResults[qi] && (
-                    <p className={`text-xs font-medium ${cueResults[qi] === "correct" ? "text-green-600" : "text-destructive"}`}>
-                      {cueResults[qi] === "correct" ? "Correct!" : "Incorrect"}
+                    <p className={`text-xs font-medium ${cueResults[qi].correct ? "text-green-600" : "text-destructive"}`}>
+                      {cueResults[qi].correct ? "Correct!" : "Incorrect"}
                     </p>
                   )}
                 </div>
@@ -253,9 +256,10 @@ export function CloudinaryVideoPlayer({ videoUrl, cues, onAllCuesComplete }: Pro
                 {!submitted ? (
                   <Button
                     onClick={handleSubmitCue}
-                    disabled={Object.keys(answers).length < activeCue.questions.length}
+                    disabled={marking || Object.keys(answers).length < activeCue.questions.length}
                     className="flex-1"
                   >
+                    {marking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Submit Answer{activeCue.questions.length > 1 ? "s" : ""}
                   </Button>
                 ) : (

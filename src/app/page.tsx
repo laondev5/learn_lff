@@ -1,7 +1,14 @@
 import { auth } from "@/auth"
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import LandingPage from "./landing/page"
+
+export const metadata: Metadata = {
+  title: "Living Faith Foundation | Learning Portal",
+  description:
+    "Video lessons in the foundations of the faith, church life and ministry, with lesson notes, questions inside the video, exams and certificates.",
+}
 
 export default async function HomePage() {
   const session = await auth()

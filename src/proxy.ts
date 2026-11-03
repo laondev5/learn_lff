@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getUserLandingPath } from "@/lib/auth-redirect"
 
-const PUBLIC_ROUTES = ["/", "/landing", "/auth/login", "/auth/forgot-password", "/auth/change-password"]
+const PUBLIC_ROUTES = ["/", "/landing", "/auth/login", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password"]
 
 const ROLE_ROUTES: Record<string, string[]> = {
   admin: ["/admin"],
@@ -24,7 +24,9 @@ export const proxy = auth((req) => {
 
   const user = req.auth?.user
 
-  if (!user) {
+  // No identity, or a token that was invalidated server-side (deactivated
+  // account, or a password changed after the token was issued).
+  if (!user || !user.id || !user.role) {
     return NextResponse.redirect(new URL("/auth/login", nextUrl))
   }
 

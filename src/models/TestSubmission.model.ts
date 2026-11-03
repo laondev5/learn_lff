@@ -20,7 +20,8 @@ export interface ITestSubmission extends Document {
 
 const AnswerEntrySchema = new Schema<IAnswerEntry>({
   questionId: { type: Schema.Types.ObjectId, required: true },
-  answer: { type: String, required: true },
+  // "" is a legitimate skipped answer; `required` would reject it and 500 the submit.
+  answer: { type: String, default: "" },
 })
 
 const TestSubmissionSchema = new Schema<ITestSubmission>(

@@ -109,7 +109,7 @@ export function ChatRoom({ forum, initialMessages, currentUserRole }: Props) {
   // ── Realtime: new messages, deletions ───────────────────────────────────────
   useEffect(() => {
     if (!pusher) return
-    const channel = pusher.subscribe(`forum-${forum.id}`)
+    const channel = pusher.subscribe(`private-forum-${forum.id}`)
 
     const onMessage = (msg: ChatMessage) => {
       setMessages((prev) => {

@@ -6,6 +6,9 @@ export type SecurityAuditEvent =
   | "onboarding_email_sent"
   | "onboarding_email_failed"
   | "temporary_password_login_blocked"
+  | "login_rate_limited"
+  | "password_reset_requested"
+  | "password_reset_completed"
   | "password_changed"
 
 export interface ISecurityAuditLog extends Document {
@@ -31,6 +34,9 @@ const SecurityAuditLogSchema = new Schema<ISecurityAuditLog>(
         "onboarding_email_sent",
         "onboarding_email_failed",
         "temporary_password_login_blocked",
+        "login_rate_limited",
+        "password_reset_requested",
+        "password_reset_completed",
         "password_changed",
       ],
       required: true,

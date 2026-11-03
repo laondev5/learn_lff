@@ -2,12 +2,24 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateUserCredentials } from "@/lib/auth-credentials"
 import { writeSecurityAuditLog } from "@/lib/security-audit"
 import { getUserLandingPath } from "@/lib/auth-redirect"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 function getIpAddress(request: NextRequest) {
   return (
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
-    undefined
+    "unknown"
+  )
+}
+
+function tooManyRequests(retryAfterSeconds: number) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "Too many sign-in attempts. Please try again later.",
+      retryAfterSeconds,
+    },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
   )
 }
 
@@ -21,6 +33,22 @@ export async function POST(request: NextRequest) {
       { ok: false, error: "Email and password are required." },
       { status: 400 }
     )
+  }
+
+  const ip = getIpAddress(request)
+  const [byEmail, byIp] = await Promise.all([
+    checkRateLimit("login-email", email, 10, 900),
+    checkRateLimit("login-ip", ip, 40, 900),
+  ])
+  if (!byEmail.allowed || !byIp.allowed) {
+    await writeSecurityAuditLog({
+      event: "login_rate_limited",
+      email,
+      status: "blocked",
+      ipAddress: ip,
+      userAgent: request.headers.get("user-agent") || undefined,
+    })
+    return tooManyRequests(Math.max(byEmail.retryAfterSeconds, byIp.retryAfterSeconds))
   }
 
   const validation = await validateUserCredentials(email, password)

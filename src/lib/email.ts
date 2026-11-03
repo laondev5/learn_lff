@@ -62,6 +62,33 @@ export function credentialsEmailHtml(name: string, email: string, password: stri
   `
 }
 
+export function passwordResetEmailHtml(name: string, resetUrl: string, expiresAt: Date) {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Reset your LFF LMS password</title>
+      </head>
+      <body style="font-family: sans-serif; background: #f4f4f4; padding: 24px;">
+        <div style="max-width: 520px; margin: auto; background: #fff; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="color: #1e293b; margin-top: 0;">Reset your password</h2>
+          <p>Hi <strong>${name}</strong>,</p>
+          <p>We received a request to reset the password for your LFF Learning Management System account.</p>
+          <p style="margin: 24px 0;">
+            <a href="${resetUrl}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 6px;">Choose a new password</a>
+          </p>
+          <p style="color: #64748b; font-size: 13px; word-break: break-all;">If the button does not work, paste this link into your browser:<br />${resetUrl}</p>
+          <p style="margin: 12px 0 0; color: #b45309;"><strong>This link expires:</strong> ${expiresAt.toUTCString()}</p>
+          <p>You can ignore this email if you did not request a reset. Your current password will keep working.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #64748b; font-size: 13px; margin: 0;">This email was sent by LFF LMS. Please do not reply.</p>
+        </div>
+      </body>
+    </html>
+  `
+}
+
 export function urgentQuestionEmailHtml(teacherName: string, studentName: string, courseTitle: string, questionTitle: string, questionContent: string) {
   const appUrl = getAppUrl()
 

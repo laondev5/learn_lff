@@ -1,4 +1,4 @@
-import { getAuthUrl } from "@/lib/google-calendar"
+import { createGoogleAuthUrl, GOOGLE_STATE_COOKIE, GOOGLE_STATE_MAX_AGE_SECONDS } from "@/lib/google-calendar"
 import { auth } from "@/auth"
 import { NextResponse } from "next/server"
 
@@ -9,6 +9,16 @@ export async function GET() {
     return new NextResponse("Unauthorized", { status: 401 })
   }
 
-  const url = getAuthUrl()
-  return NextResponse.redirect(url)
+  const { url, state } = createGoogleAuthUrl()
+
+  const response = NextResponse.redirect(url)
+  response.cookies.set(GOOGLE_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/api/auth",
+    maxAge: GOOGLE_STATE_MAX_AGE_SECONDS,
+  })
+
+  return response
 }

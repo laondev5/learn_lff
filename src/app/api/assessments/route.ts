@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const session = await auth()
-    if (!session?.user) {
+    if (!session?.user || (session.user.role !== "teacher" && session.user.role !== "admin")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -62,6 +62,14 @@ export async function GET(req: Request) {
     }
 
     await connectDB()
+
+    // Teachers only ever see assessments for courses they own.
+    if (
+      session.user.role === "teacher" &&
+      !(await Course.exists({ _id: courseId, teacher: session.user.id }))
+    ) {
+      return NextResponse.json({ error: "Course not found or unauthorized access" }, { status: 404 })
+    }
 
     const query: Record<string, unknown> = { course: courseId }
     if (type) query.type = type

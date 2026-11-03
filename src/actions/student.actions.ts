@@ -12,6 +12,7 @@ import StudentProgress from "@/models/StudentProgress.model"
 import TestSubmission from "@/models/TestSubmission.model"
 import ExamSubmission from "@/models/ExamSubmission.model"
 import Certificate from "@/models/Certificate.model"
+import PaymentTransaction from "@/models/PaymentTransaction.model"
 import { Types } from "mongoose"
 
 import { initializePaystackPayment } from "@/lib/paystack"
@@ -67,13 +68,18 @@ export async function initializeCoursePayment(courseId: string) {
 
   await connectDB()
   const course = await Course.findById(courseId).lean()
-  if (!course) return { error: "Course not found" }
+  if (!course || !course.isPublished) return { error: "Course not found" }
   if (!course.isPaid) return { error: "This course is free. Use direct enrollment." }
+  if (await StudentProgress.exists({ student: session.user.id, course: courseId })) {
+    return { error: "Already enrolled" }
+  }
+  const price = course.price ?? 0
+  if (!(price > 0)) return { error: "This course is free. Use direct enrollment." }
 
   try {
     const paymentData = await initializePaystackPayment({
       email: session.user.email!,
-      amount: course.price,
+      amount: price,
       courseId: course._id.toString(),
       studentId: session.user.id,
     })
@@ -225,11 +231,25 @@ export async function enrollInCourse(courseId: string) {
   if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
 
   await connectDB()
+  const course = await Course.findById(courseId).lean()
+  if (!course || !course.isPublished) return { error: "Course not found" }
+
   const existing = await StudentProgress.findOne({
     student: session.user.id,
     course: courseId,
   })
   if (existing) return { error: "Already enrolled" }
+
+  // A paid course only opens once a payment for it has succeeded for this student.
+  if (course.isPaid) {
+    const paid = await PaymentTransaction.exists({
+      student: session.user.id,
+      course: courseId,
+      status: "success",
+      amount: { $gte: course.price ?? 0 },
+    })
+    if (!paid) return { error: "Payment required to enroll in this course" }
+  }
 
   await StudentProgress.create({
     student: session.user.id,
@@ -347,14 +367,29 @@ export async function getLessonForStudent(lessonId: string) {
     nextLessonId = allLessons[lessonIndex + 1]._id.toString()
   }
 
+  // The media URL is never shipped to the browser: the player points at an
+  // endpoint that re-checks enrollment and payment on every playback request.
+  const storedVideoUrl = lesson.videoUrl ?? ""
+  const youtubeMatch = storedVideoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?]+)/)
+  const videoKind: "cloudinary" | "youtube" | "direct" | null = lesson.youtubeVideoId
+    ? "youtube"
+    : storedVideoUrl
+      ? youtubeMatch
+        ? "youtube"
+        : storedVideoUrl.includes("cloudinary.com")
+          ? "cloudinary"
+          : "direct"
+      : null
+
   return {
     id: lesson._id.toString(),
     title: lesson.title,
     lessonType: lesson.lessonType ?? "text",
     content: lesson.content,
     studentNotes: lesson.studentNotes ?? "",
-    videoUrl: lesson.videoUrl ?? null,
-    youtubeVideoId: lesson.youtubeVideoId ?? null,
+    videoKind,
+    videoUrl: videoKind && videoKind !== "youtube" ? `/api/lessons/${lessonId}/video` : null,
+    youtubeVideoId: lesson.youtubeVideoId ?? youtubeMatch?.[1] ?? null,
     videoCues: (lesson.videoCues ?? []).map((cue) => ({
       id: cue._id?.toString() ?? "",
       timestamp: cue.timestamp,
@@ -363,7 +398,6 @@ export async function getLessonForStudent(lessonId: string) {
         text: q.text,
         type: q.type,
         options: q.options ?? [],
-        correctAnswer: q.correctAnswer,
         points: q.points,
       })),
     })),
@@ -387,6 +421,45 @@ export async function getLessonForStudent(lessonId: string) {
         }
       : null,
   }
+}
+
+/**
+ * Grades one in-video pop-up. The correct answers stay on the server so they are
+ * never shipped to the browser before the student has answered.
+ */
+export async function gradeVideoCueAnswers(
+  lessonId: string,
+  cueTimestamp: number,
+  answers: Record<string, string>
+) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
+  if (!Types.ObjectId.isValid(lessonId)) return { error: "Lesson not found" }
+
+  await connectDB()
+  const lesson = await Lesson.findById(lessonId)
+    .select("isPublished course videoCues")
+    .lean()
+  if (!lesson || !lesson.isPublished) return { error: "Lesson not found" }
+
+  const enrolled = await StudentProgress.exists({
+    student: session.user.id,
+    course: lesson.course,
+  })
+  if (!enrolled) return { error: "Not enrolled" }
+
+  const cue = (lesson.videoCues ?? []).find((c) => c.timestamp === cueTimestamp)
+  if (!cue) return { error: "Question not found" }
+
+  const results = cue.questions.map((q, index) => {
+    const given = (answers[String(index)] ?? "").trim().toLowerCase()
+    return {
+      correct: given === q.correctAnswer.trim().toLowerCase(),
+      correctAnswer: q.correctAnswer,
+    }
+  })
+
+  return { success: true, results, allCorrect: results.every((r) => r.correct) }
 }
 
 export async function markLessonViewed(lessonId: string) {
