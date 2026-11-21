@@ -2,7 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import {
   Award, BookOpen, Check, ChevronRight, CircleDashed, ClipboardCheck, Clock, FileText,
-  GraduationCap, Infinity as InfinityIcon, Lock, MessageCircle, PlayCircle, Trophy, Users,
+  GraduationCap, Lock, MessageCircle, PlayCircle, Trophy, Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CourseCurriculum, type CurriculumSection } from "@/components/student/CourseCurriculum"
@@ -39,7 +39,7 @@ export interface CoursePreviewData {
   studentCount: number
   isEnrolled: boolean
   hasExam: boolean
-  stats: { modules: number; lessons: number; videoLessons: number; textLessons: number; tests: number }
+  stats: { modules: number; lessons: number; videoLessons: number; textLessons: number; tests: number; moduleTests: number }
   modules: CurriculumSection[]
 }
 
@@ -51,10 +51,11 @@ export function CoursePreviewView({ course }: { course: CoursePreviewData }) {
     course.stats.videoLessons > 0 && { icon: PlayCircle, text: `${course.stats.videoLessons} video lesson${course.stats.videoLessons !== 1 ? "s" : ""}` },
     course.stats.textLessons > 0 && { icon: FileText, text: `${course.stats.textLessons} reading lesson${course.stats.textLessons !== 1 ? "s" : ""}` },
     course.stats.tests > 0 && { icon: ClipboardCheck, text: `${course.stats.tests} lesson quiz${course.stats.tests !== 1 ? "zes" : ""}` },
+    course.stats.moduleTests > 0 && { icon: ClipboardCheck, text: `${course.stats.moduleTests} module test${course.stats.moduleTests !== 1 ? "s" : ""}` },
     course.hasExam && { icon: GraduationCap, text: "Final exam" },
     course.hasExam && { icon: Trophy, text: "Certificate of completion" },
     { icon: MessageCircle, text: "Q&A with the instructor" },
-    { icon: InfinityIcon, text: "Learn at your own pace" },
+    { icon: Clock, text: "Scheduled cohort access" },
   ].filter(Boolean) as { icon: typeof BookOpen; text: string }[]
 
   const enrollCard = (
@@ -166,6 +167,20 @@ export function CoursePreviewView({ course }: { course: CoursePreviewData }) {
 
 // ─── Learning view (enrolled) ─────────────────────────────────────────────────
 
+export interface CourseModuleTestSummary {
+  id: string
+  title: string
+  moduleId: string
+  moduleTitle: string
+  questionCount: number
+  durationMinutes: number
+  passingMarks: number
+  maxAttempts: number
+  status: "passed" | "available" | "locked"
+  reason?: string
+  attemptsLeft: number
+}
+
 export interface CourseLearningData {
   id: string
   title: string
@@ -175,10 +190,14 @@ export interface CourseLearningData {
   enrolledAt: string
   nextLesson: { id: string; title: string; moduleTitle: string } | null
   modules: (CurriculumSection & { isCompleted: boolean })[]
+  moduleTests: CourseModuleTestSummary[]
+  passedModuleTestsCount: number
   hasExam: boolean
   examPassed: boolean
   certificateIssued: boolean
   allModulesComplete: boolean
+  totalModules: number
+  completedModulesCount: number
   totalLessons: number
   completedLessonsCount: number
 }
@@ -195,10 +214,10 @@ export function CourseLearningView({
   const progress = course.examPassed
     ? 100
     : course.totalLessons > 0
-      ? Math.round((course.completedLessonsCount / course.totalLessons) * 100)
+      ? Math.min(100, Math.round((course.completedLessonsCount / course.totalLessons) * 100))
       : 0
   const allLessonsDone = course.totalLessons > 0 && course.completedLessonsCount >= course.totalLessons
-  const sectionsDone = course.modules.filter((m) => m.isCompleted).length
+  const sectionsDone = course.completedModulesCount
   const firstLessonId = course.modules.find((m) => m.lessons.length > 0)?.lessons[0]?.id
 
   // Primary action (same rules as before, now surfaced as the "continue" card)
@@ -209,7 +228,7 @@ export function CourseLearningView({
   else if (allLessonsDone) action = { href: firstLessonId ? `/student/courses/${course.id}/lessons/${firstLessonId}` : null, label: "Review course", icon: BookOpen }
   else action = {
     href: course.nextLesson ? `/student/courses/${course.id}/lessons/${course.nextLesson.id}` : null,
-    label: course.completedLessonsCount === 0 ? "Start course" : "Continue learning",
+    label: course.completedLessonsCount === 0 ? "Start course" : course.nextLesson ? "Continue learning" : "Today’s module complete",
     icon: PlayCircle,
   }
   const ActionIcon = action.icon
@@ -217,6 +236,9 @@ export function CourseLearningView({
   const milestones = [
     { label: "Start the course", done: course.completedLessonsCount > 0 },
     { label: "Complete all lessons", done: allLessonsDone },
+    ...(course.moduleTests.length > 0
+      ? [{ label: "Pass all module tests", done: course.passedModuleTestsCount === course.moduleTests.length }]
+      : []),
     ...(course.hasExam
       ? [
           { label: "Pass the final exam", done: course.examPassed },
@@ -318,6 +340,52 @@ export function CourseLearningView({
                       nextLessonId={course.nextLesson?.id ?? null}
                     />
 
+                    {course.moduleTests.length > 0 && (
+                      <div className="space-y-4 rounded-xl border p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-bold">Module tests</p>
+                            <p className="text-sm text-muted-foreground">
+                              Pass each section's test to complete the module. The final exam unlocks once every module is complete.
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-sm font-semibold">
+                            {course.passedModuleTestsCount} / {course.moduleTests.length} passed
+                          </span>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {course.moduleTests.map((test) => (
+                            <div key={test.id} className="flex items-center gap-3 rounded-lg border p-3">
+                              <div className={cn(
+                                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                                test.status === "passed" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                              )}>
+                                {test.status === "passed" ? <Check className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">{test.moduleTitle}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {test.questionCount} questions · {test.durationMinutes} min · pass mark {test.passingMarks}
+                                </p>
+                                {test.status === "locked" && test.reason && (
+                                  <p className="text-xs text-muted-foreground">{test.reason}</p>
+                                )}
+                              </div>
+                              {test.status === "locked" ? (
+                                <Button size="sm" variant="outline" disabled>Take test</Button>
+                              ) : (
+                                <Button asChild size="sm" variant={test.status === "passed" ? "outline" : "default"}>
+                                  <Link href={`/student/courses/${course.id}/tests/${test.id}`}>
+                                    {test.status === "passed" ? "Retake" : "Take test"}
+                                  </Link>
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {course.hasExam && (
                       <div className={cn(
                         "flex flex-col gap-4 rounded-xl border p-5 sm:flex-row sm:items-center",
@@ -382,7 +450,7 @@ export function CourseLearningView({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Sections</dt>
-                    <dd className="font-semibold">{sectionsDone} / {course.modules.length}</dd>
+                    <dd className="font-semibold">{sectionsDone} / {course.totalModules}</dd>
                   </div>
                 </dl>
               </div>

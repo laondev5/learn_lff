@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { BarChart3, BookOpen, LayoutDashboard, UserCircle, X } from "lucide-react"
+import { BarChart3, BookOpen, CalendarDays, LayoutDashboard, UserCircle, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 const navItems = [
   { href: "/teacher/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/teacher/courses", label: "My Courses", icon: BookOpen },
+  { href: "/teacher/cohorts", label: "Cohort Schedules", icon: CalendarDays },
   { href: "/teacher/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/teacher/profile", label: "My Profile", icon: UserCircle },
 ]

@@ -11,6 +11,8 @@ export interface IPaymentTransaction extends Document {
   status: "pending" | "success" | "failed"
   authorizationUrl?: string
   paidAt?: Date
+  /** Machine-readable reason for a failed or mismatched attempt (shown to admins). */
+  failureReason?: string
   providerResponse?: Record<string, unknown>
   createdAt: Date
   updatedAt: Date
@@ -27,6 +29,7 @@ const PaymentTransactionSchema = new Schema<IPaymentTransaction>(
     status: { type: String, enum: ["pending", "success", "failed"], default: "pending", required: true },
     authorizationUrl: { type: String },
     paidAt: { type: Date },
+    failureReason: { type: String, maxlength: 120 },
     providerResponse: { type: Schema.Types.Mixed },
   },
   { timestamps: true }

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { saveExam } from "@/actions/course.actions"
 
-type QuestionType = "mcq" | "true_false" | "short_answer"
+type QuestionType = "mcq" | "true_false" | "short_answer" | "fill_blank"
 
 interface Question {
   text: string
@@ -72,7 +72,7 @@ export function ExamBuilderClient({
         } else if (patch.type === "mcq" && q.type !== "mcq") {
           updated.options = ["", "", "", ""]
           updated.correctAnswer = ""
-        } else if (patch.type === "short_answer") {
+        } else if (patch.type === "short_answer" || patch.type === "fill_blank") {
           updated.options = []
         }
         return updated
@@ -195,6 +195,7 @@ function ExamQuestionEditor({
                 <SelectItem value="mcq">Multiple Choice</SelectItem>
                 <SelectItem value="true_false">True / False</SelectItem>
                 <SelectItem value="short_answer">Short Answer</SelectItem>
+                <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -231,10 +232,13 @@ function ExamQuestionEditor({
           </div>
         )}
 
-        {question.type === "short_answer" && (
+        {(question.type === "short_answer" || question.type === "fill_blank") && (
           <div className="space-y-2">
-            <Label>Model Answer</Label>
-            <Input value={question.correctAnswer} onChange={(e) => onUpdate({ correctAnswer: e.target.value })} placeholder="Expected answer" />
+            <Label>{question.type === "fill_blank" ? "Answer for the blank" : "Model Answer"}</Label>
+            {question.type === "fill_blank" && (
+              <p className="text-xs text-muted-foreground">Use underscores in the question for the gap; enter the missing word here.</p>
+            )}
+            <Input value={question.correctAnswer} onChange={(e) => onUpdate({ correctAnswer: e.target.value })} placeholder={question.type === "fill_blank" ? "Word that fills the gap" : "Expected answer"} />
           </div>
         )}
 

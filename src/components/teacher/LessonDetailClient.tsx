@@ -1,5 +1,7 @@
 "use client"
 
+import { uploadVideo, discardR2Upload } from "@/lib/upload-video"
+
 import { useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -14,10 +16,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes, updateLesson, discardUnusedUpload } from "@/actions/course.actions"
+import { saveTest, deleteTest, saveVideoCues, saveLessonVideoUrl, saveLessonStudentNotes, updateLesson } from "@/actions/course.actions"
 import { Stepper, StepHint, type StepItem } from "@/components/teacher/Stepper"
 
-type QuestionType = "mcq" | "true_false" | "short_answer"
+type QuestionType = "mcq" | "true_false" | "short_answer" | "fill_blank"
 
 interface Question {
   id?: string
@@ -183,7 +185,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
         const updated = { ...q, ...patch }
         if (patch.type === "true_false") { updated.options = ["True", "False"]; updated.correctAnswer = "" }
         else if (patch.type === "mcq" && q.type !== "mcq") { updated.options = ["", "", "", ""]; updated.correctAnswer = "" }
-        else if (patch.type === "short_answer") { updated.options = [] }
+        else if (patch.type === "short_answer" || patch.type === "fill_blank") { updated.options = [] }
         return updated
       })
     )
@@ -241,7 +243,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
         const updated = { ...q, ...patch }
         if (patch.type === "true_false") { updated.options = ["True", "False"]; updated.correctAnswer = "" }
         else if (patch.type === "mcq" && q.type !== "mcq") { updated.options = ["", "", "", ""]; updated.correctAnswer = "" }
-        else if (patch.type === "short_answer") { updated.options = [] }
+        else if (patch.type === "short_answer" || patch.type === "fill_blank") { updated.options = [] }
         return updated
       })
       return { ...c, questions: qs }
@@ -302,7 +304,7 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     }
   }
 
-  // --- Cloudinary chunked upload ---
+  // --- Private R2 multipart upload ---
   async function handleUploadVideo() {
     if (!uploadFile) return
 
@@ -310,65 +312,13 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
     setUploadProgress(0)
 
     try {
-      const signRes = await fetch("/api/video/sign")
-      if (!signRes.ok) throw new Error("Failed to get upload credentials")
-      const { cloudName, apiKey, timestamp, signature, folder } = await signRes.json() as {
-        cloudName: string; apiKey: string; timestamp: number; signature: string; folder: string
-      }
-
-      const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB per chunk
-      const totalSize = uploadFile.size
-      const totalChunks = Math.ceil(totalSize / CHUNK_SIZE)
-      const uniqueUploadId = `lff-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      let secureUrl = ""
-
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE
-        const end = Math.min(start + CHUNK_SIZE, totalSize)
-        const chunk = uploadFile.slice(start, end)
-
-        await new Promise<void>((resolve, reject) => {
-          const fd = new FormData()
-          fd.append("file", chunk, uploadFile.name)
-          fd.append("api_key", apiKey)
-          fd.append("timestamp", String(timestamp))
-          fd.append("signature", signature)
-          fd.append("folder", folder)
-
-          const xhr = new XMLHttpRequest()
-          xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`)
-          xhr.setRequestHeader("X-Unique-Upload-Id", uniqueUploadId)
-          xhr.setRequestHeader("Content-Range", `bytes ${start}-${end - 1}/${totalSize}`)
-
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const overall = ((i + e.loaded / e.total) / totalChunks) * 100
-              setUploadProgress(Math.round(overall))
-            }
-          }
-
-          xhr.onload = () => {
-            if (xhr.status === 200) {
-              const data = JSON.parse(xhr.responseText) as { secure_url?: string }
-              if (data.secure_url) secureUrl = data.secure_url
-              setUploadProgress(Math.round(((i + 1) / totalChunks) * 100))
-              resolve()
-            } else {
-              reject(new Error(`Chunk ${i + 1} failed: ${xhr.statusText}`))
-            }
-          }
-          xhr.onerror = () => reject(new Error("Network error during upload"))
-          xhr.send(fd)
-        })
-      }
-
-      if (!secureUrl) throw new Error("Upload completed but no URL was returned")
+      const secureUrl = await uploadVideo(uploadFile, setUploadProgress)
 
       const result = await saveLessonVideoUrl(lesson.id, secureUrl)
       if (result.error) {
         toast.error(result.error)
-        // Uploaded but not attached to the lesson: remove it so it doesn't linger in Cloudinary
-        discardUnusedUpload(secureUrl)
+        // Uploaded but not attached to the lesson: remove it after a reference check.
+        discardR2Upload(secureUrl)
       } else {
         setCurrentVideoUrl(secureUrl)
         setUploadFile(null)
@@ -406,7 +356,8 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
   }
 
   const isCloudinaryUrl = currentVideoUrl.includes("cloudinary.com")
-  const youtubeEmbedId = !isCloudinaryUrl ? extractYouTubeId(currentVideoUrl) : ""
+  const isR2Url = currentVideoUrl.includes("r2.cloudflarestorage.com")
+  const youtubeEmbedId = !isCloudinaryUrl && !isR2Url ? extractYouTubeId(currentVideoUrl) : ""
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -522,11 +473,9 @@ export function LessonDetailClient({ lesson }: { lesson: LessonData }) {
                   <CardTitle className="text-base">Current Video</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {isCloudinaryUrl ? (
+                  {isCloudinaryUrl || isR2Url ? (
                     <div className="aspect-video rounded-md overflow-hidden border bg-black">
-                      <video src={currentVideoUrl.includes("/video/upload/") && !currentVideoUrl.includes("c_limit,") 
-                        ? currentVideoUrl.replace("/video/upload/", "/video/upload/c_limit,w_1280,h_720,q_auto,vc_auto/")
-                        : currentVideoUrl} controls className="w-full h-full" controlsList="nodownload" />
+                      <video key={currentVideoUrl} src={`/api/lessons/${lesson.id}/video`} controls className="w-full h-full" controlsList="nodownload" />
                     </div>
                   ) : youtubeEmbedId ? (
                     <div className="aspect-video rounded-md overflow-hidden border">
@@ -888,6 +837,7 @@ function QuestionEditor({
                 <SelectItem value="mcq">Multiple Choice</SelectItem>
                 <SelectItem value="true_false">True / False</SelectItem>
                 <SelectItem value="short_answer">Short Answer</SelectItem>
+                <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -931,6 +881,17 @@ function QuestionEditor({
               onChange={(e) => onUpdate({ correctAnswer: e.target.value })}
               placeholder="Expected answer (used for auto-grading)"
             />
+          </div>
+        )}
+        {question.type === "fill_blank" && (
+          <div className="space-y-2">
+            <Label>Answer for the blank</Label>
+            <Input
+              value={question.correctAnswer}
+              onChange={(e) => onUpdate({ correctAnswer: e.target.value })}
+              placeholder="Missing word or phrase (used for auto-grading)"
+            />
+            <p className="text-xs text-muted-foreground">Put underscores in the question text where the blank should appear.</p>
           </div>
         )}
         <div className="w-24 space-y-2">

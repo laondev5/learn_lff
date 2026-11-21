@@ -1,7 +1,7 @@
 import "server-only"
 import mongoose, { Document, Model, Schema, Types } from "mongoose"
 
-export type QuestionType = "mcq" | "true_false" | "short_answer"
+export type QuestionType = "mcq" | "true_false" | "short_answer" | "fill_blank"
 
 export interface IQuestion {
   _id: Types.ObjectId
@@ -26,7 +26,7 @@ export interface ITest extends Document {
 
 const QuestionSchema = new Schema<IQuestion>({
   text: { type: String, required: true },
-  type: { type: String, enum: ["mcq", "true_false", "short_answer"], required: true },
+  type: { type: String, enum: ["mcq", "true_false", "short_answer", "fill_blank"], required: true },
   options: [{ type: String }],
   correctAnswer: { type: String, required: true },
   points: { type: Number, required: true, default: 1 },

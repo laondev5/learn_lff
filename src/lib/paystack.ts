@@ -9,11 +9,14 @@ export async function initializePaystackPayment({
   amount,
   courseId,
   studentId,
+  callbackPath = "/api/payments/verify",
 }: {
   email: string
   amount: number
   courseId: string
   studentId: string
+  /** Where Paystack returns the payer; differs for applicants who have no session yet. */
+  callbackPath?: string
 }) {
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key is not configured")
@@ -31,7 +34,7 @@ export async function initializePaystackPayment({
       email,
       amount: amount * 100, // Paystack expects amount in kobo
       reference,
-      callback_url: `${getAppUrl()}/api/payments/verify`,
+      callback_url: `${getAppUrl()}${callbackPath}`,
       metadata: {
         courseId,
         studentId,
@@ -71,13 +74,21 @@ export async function verifyPaystackPayment(reference: string) {
   })
 
   const data = await response.json()
+  const charge = data?.data as Record<string, unknown> | undefined
 
-  if (!data.status || data.data.status !== "success") {
-    return { success: false, message: data.message || "Verification failed" }
+  if (!response.ok || !data.status || charge?.status !== "success") {
+    // The provider's own status (failed/abandoned/reversed) is passed through so the
+    // transaction can be closed instead of lingering as pending forever.
+    return {
+      success: false as const,
+      message: data?.message || "Verification failed",
+      status: typeof charge?.status === "string" ? charge.status : undefined,
+      data: charge,
+    }
   }
 
   return {
-    success: true,
-    data: data.data,
+    success: true as const,
+    data: charge,
   }
 }

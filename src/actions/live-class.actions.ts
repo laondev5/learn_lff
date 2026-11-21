@@ -1,5 +1,7 @@
 "use server"
 
+import { getStudentCourseAccess } from "@/lib/cohort-access"
+import StudentProgress from "@/models/StudentProgress.model"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import LiveClass, { ILiveClass } from "@/models/LiveClass.model"
@@ -56,8 +58,11 @@ export async function createLiveClass(formData: FormData) {
 }
 
 export async function getLiveClasses(role: "teacher" | "student", userId: string) {
+  const session = await auth()
+  if (!session?.user || session.user.id !== userId || session.user.role !== role) return []
   await connectDB()
   const filter = role === "teacher" ? { instructor: userId } : {}
   const classes = await LiveClass.find(filter).sort({ startTime: 1 }).lean()
-  return JSON.parse(JSON.stringify(classes)) as ILiveClass[] // Using ILiveClass[] for proper typing
+  const access = role === "student" ? await Promise.all(classes.map(async c => !c.course || ((await getStudentCourseAccess(userId, c.course.toString())).allowed && !!(await StudentProgress.exists({ student: userId, course: c.course }))))) : classes.map(() => true)
+  return JSON.parse(JSON.stringify(classes.filter((_, i) => access[i]))) as ILiveClass[] // Using ILiveClass[] for proper typing
 }

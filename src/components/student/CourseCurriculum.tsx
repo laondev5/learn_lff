@@ -14,10 +14,21 @@ export interface CurriculumLesson {
   locked?: boolean
 }
 
+export interface CurriculumModuleTest {
+  id: string
+  title: string
+  questionCount?: number
+  status?: "passed" | "available" | "locked"
+  reason?: string
+}
+
 export interface CurriculumSection {
   id: string
   title: string
+  /** Course-wide position. Only today's module is shown, so numbering must not restart at 1. */
+  order?: number
   lessons: CurriculumLesson[]
+  moduleTests?: CurriculumModuleTest[]
 }
 
 /**
@@ -103,7 +114,7 @@ export function CourseCurriculum({
                 <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 transition-transform duration-200", isOpen && "rotate-180")} />
                 <div className="min-w-0 flex-1">
                   <p className={cn("font-semibold leading-snug", compact ? "text-sm" : "text-base")}>
-                    Section {sIdx + 1}: {section.title}
+                    Section {section.order ?? sIdx + 1}: {section.title}
                   </p>
                   {compact && showProgress && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -133,6 +144,9 @@ export function CourseCurriculum({
                       isCurrent={lesson.id === currentLessonId}
                       isNext={lesson.id === nextLessonId && mode === "learning"}
                     />
+                  ))}
+                  {section.moduleTests?.map((test) => (
+                    <ModuleTestRow key={test.id} test={test} mode={mode} courseId={courseId} />
                   ))}
                 </ul>
               </div>
@@ -215,6 +229,56 @@ function LessonRow({
         </Link>
       ) : (
         <div className={className} title={lesson.locked ? "Complete the previous lesson to unlock" : undefined}>
+          {body}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function ModuleTestRow({
+  test, mode, courseId,
+}: {
+  test: CurriculumModuleTest
+  mode: "preview" | "learning" | "sidebar"
+  courseId: string
+}) {
+  const clickable = mode === "learning" && test.status !== "locked"
+  const StatusIcon = test.status === "passed" ? Check : test.status === "locked" ? Lock : ClipboardCheck
+  const statusLabel =
+    test.status === "passed" ? "Passed" :
+    test.status === "available" ? "Ready to take" :
+    test.status === "locked" ? (test.reason ?? "Locked") :
+    "Module assessment"
+
+  const body = (
+    <>
+      <StatusIcon className={cn("h-4 w-4 shrink-0", test.status === "passed" ? "text-primary" : "text-muted-foreground")} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-snug">Module test: {test.title}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {typeof test.questionCount === "number" && (
+            <span>{test.questionCount} question{test.questionCount !== 1 ? "s" : ""}</span>
+          )}
+          <span className={cn(test.status === "passed" && "font-semibold text-primary")}>{statusLabel}</span>
+        </div>
+      </div>
+    </>
+  )
+
+  const className = cn(
+    "flex items-start gap-3 border-t px-5 py-3 transition-colors",
+    clickable && "hover:bg-muted/60"
+  )
+
+  return (
+    <li>
+      {clickable ? (
+        <Link href={`/student/courses/${courseId}/tests/${test.id}`} className={className}>
+          {body}
+        </Link>
+      ) : (
+        <div className={className} title={test.status === "locked" ? test.reason : undefined}>
           {body}
         </div>
       )}

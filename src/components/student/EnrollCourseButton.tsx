@@ -26,14 +26,14 @@ export function EnrollCourseButton({ courseId, isPaid, price, label, size = "def
 
     if (isPaid && price && price > 0) {
       const result = await initializeCoursePayment(courseId)
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error)
       } else if (result.authorizationUrl) {
         window.location.href = result.authorizationUrl
       }
     } else {
       const result = await enrollInCourse(courseId)
-      if (result.error) {
+      if ("error" in result) {
         toast.error(result.error)
       } else {
         toast.success("Enrolled successfully!")

@@ -26,6 +26,7 @@ export interface IUser extends Document {
   accountabilityPartner?: {
     name: string
     email: string
+    phone?: string
     location: string
   }
   kycStatus?: "not_started" | "pending" | "verified" | "rejected"
@@ -68,6 +69,7 @@ const UserSchema = new Schema<IUser>(
     accountabilityPartner: {
       name: { type: String, trim: true },
       email: { type: String, lowercase: true, trim: true },
+      phone: { type: String, trim: true },
       location: { type: String, trim: true },
     },
     kycStatus: {

@@ -3,14 +3,16 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Award, BookOpen, LayoutDashboard, Megaphone, MessageSquare, UserCircle, X } from "lucide-react"
+import { Award, BookOpen, CalendarDays, LayoutDashboard, Megaphone, MessageSquare, UserCircle, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 
 const navItems = [
   { href: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/student/applications", label: "Applications", icon: CalendarDays },
   { href: "/student/courses", label: "My Courses", icon: BookOpen },
+  { href: "/student/appeals", label: "Schedule & Appeals", icon: CalendarDays },
   { href: "/student/announcements", label: "Announcements", icon: Megaphone },
   { href: "/student/chat", label: "Community", icon: MessageSquare },
   { href: "/student/certificates", label: "Certificates", icon: Award },

@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/mongoose"
 import SystemConfig from "@/models/SystemConfig.model"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
-import cloudinary from "@/lib/cloudinary"
+import { deleteR2Image, uploadR2Image } from "@/lib/r2-files"
 
 export async function getSystemConfig() {
   await connectDB()
@@ -51,33 +51,26 @@ export async function uploadSystemImage(formData: FormData, type: "logo" | "sign
   const file = formData.get("file") as File | null
   if (!file) return { error: "No file provided" }
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-  const base64 = `data:${file.type};base64,${buffer.toString("base64")}`
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) return { error: "Image must be 10 MB or smaller" }
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase()
+  if (!["jpg", "jpeg", "png", "webp", "gif"].includes(ext) || !file.type.startsWith("image/")) {
+    return { error: "Only jpg, png, webp or gif images are allowed" }
+  }
 
   await connectDB()
   const existing = await SystemConfig.findOne().lean()
+  const previous = type === "logo" ? existing?.logoUrl : existing?.signatureUrl
 
-  // Delete old image from Cloudinary if it exists
-  if (existing) {
-    const oldId = type === "logo" ? existing.logoPublicId : existing.signaturePublicId
-    if (oldId) {
-      await cloudinary.uploader.destroy(oldId).catch(() => {})
-    }
-  }
-
-  const result = await cloudinary.uploader.upload(base64, {
-    folder: `lff-lms/system`,
-    resource_type: "image",
-  })
+  const result = await uploadR2Image(Buffer.from(await file.arrayBuffer()), "lff-lms/system", ext, file.type)
 
   const update =
     type === "logo"
-      ? { logoUrl: result.secure_url, logoPublicId: result.public_id }
-      : { signatureUrl: result.secure_url, signaturePublicId: result.public_id }
+      ? { logoUrl: result.url, logoPublicId: result.key }
+      : { signatureUrl: result.url, signaturePublicId: result.key }
 
   await SystemConfig.findOneAndUpdate({}, update, { upsert: true, new: true })
+  if (previous) await deleteR2Image(previous)
 
   revalidatePath("/admin/settings")
-  return { success: true, url: result.secure_url }
+  return { success: true, url: result.url }
 }

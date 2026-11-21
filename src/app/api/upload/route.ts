@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import cloudinary from "@/lib/cloudinary"
+import { uploadR2Image } from "@/lib/r2-files"
 
 const MAX_BYTES = 10 * 1024 * 1024
 
@@ -13,7 +13,7 @@ const IMAGE_TYPES: Record<string, string[]> = {
 
 /** Folders each role may write to. Anything else is rejected. */
 const ALLOWED_FOLDERS: Record<string, string[]> = {
-  admin: ["lff-lms/covers", "lff-lms/system", "lff-lms/avatars", "kyc"],
+  admin: ["lff-lms/covers", "lff-lms/system", "lff-lms/certificates", "lff-lms/avatars", "kyc"],
   teacher: ["lff-lms/covers", "lff-lms/avatars"],
   student: ["kyc", "lff-lms/avatars"],
 }
@@ -47,20 +47,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Only jpg, png, webp or gif images are allowed" }, { status: 400 })
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const base64 = `data:${file.type};base64,${buffer.toString("base64")}`
-
   try {
-    const result = await cloudinary.uploader.upload(base64, {
-      folder,
-      resource_type: "image",
-      overwrite: false,
-    })
-
-    return NextResponse.json({
-      url: result.secure_url,
-      publicId: result.public_id,
-    })
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const result = await uploadR2Image(buffer, folder, ext, file.type)
+    return NextResponse.json({ url: result.url, key: result.key })
   } catch (error: unknown) {
     console.error("[UPLOAD]", error)
     return NextResponse.json({ error: "Upload failed" }, { status: 500 })

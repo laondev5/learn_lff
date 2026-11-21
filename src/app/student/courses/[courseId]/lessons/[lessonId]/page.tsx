@@ -29,19 +29,22 @@ export default async function StudentLessonPage({ params }: Props) {
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
           {lesson.error}
         </div>
+        <Link href="/student/appeals" className="text-primary underline">View access status or request an appeal</Link>
       </div>
     )
   }
 
+  if (lesson.courseId !== courseId) notFound()
+
   const hasCurriculum = course && !("error" in course)
   const progress = hasCurriculum && course.totalLessons > 0
-    ? Math.round((course.completedLessonsCount / course.totalLessons) * 100)
+    ? Math.min(100, Math.round((course.completedLessonsCount / course.totalLessons) * 100))
     : 0
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0">
-        <LessonViewerClient lesson={lesson} courseId={courseId} />
+        <LessonViewerClient key={lessonId} lesson={lesson} courseId={courseId} />
       </div>
 
       {hasCurriculum && (

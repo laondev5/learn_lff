@@ -1,5 +1,6 @@
 "use server"
 
+import { getStudentCourseAccess } from "@/lib/cohort-access"
 import { z } from "zod"
 import { connectDB } from "@/lib/mongoose"
 import { auth } from "@/auth"
@@ -84,7 +85,7 @@ export async function getAnnouncementsForStudent(courseId: string) {
     student: session.user.id,
     course: courseId,
   })
-  if (!enrolled) return []
+  if (!enrolled || !(await getStudentCourseAccess(session.user.id, courseId)).allowed) return []
 
   const anns = await Announcement.find({ course: courseId, isPublished: true })
     .sort({ createdAt: -1 })
@@ -104,7 +105,8 @@ export async function getAllStudentAnnouncements() {
 
   await connectDB()
   const progresses = await StudentProgress.find({ student: session.user.id }).lean()
-  const courseIds = progresses.map((p) => p.course)
+  const allowed = await Promise.all(progresses.map(p => getStudentCourseAccess(session.user.id, p.course.toString())))
+  const courseIds = progresses.filter((_, i) => allowed[i].allowed).map((p) => p.course)
 
   const anns = await Announcement.find({ course: { $in: courseIds }, isPublished: true })
     .sort({ createdAt: -1 })

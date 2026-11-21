@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "sonner"
 import { gradeVideoCueAnswers } from "@/actions/student.actions"
 
 interface CueQuestion {
@@ -24,6 +25,7 @@ interface Props {
   lessonId: string
   videoId: string
   cues: VideoCue[]
+  onEnded?: () => void
   onAllCuesComplete?: () => void
 }
 
@@ -55,7 +57,9 @@ declare global {
   }
 }
 
-export function YouTubePlayerWithQuiz({ lessonId, videoId, cues, onAllCuesComplete }: Props) {
+export function YouTubePlayerWithQuiz({ lessonId, videoId, cues, onAllCuesComplete, onEnded }: Props) {
+  const endedRef = useRef(onEnded)
+  useEffect(() => { endedRef.current = onEnded }, [onEnded])
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -107,6 +111,7 @@ export function YouTubePlayerWithQuiz({ lessonId, videoId, cues, onAllCuesComple
         events: {
           onReady: () => setPlayerReady(true),
           onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.ENDED) endedRef.current?.()
             if (e.data === window.YT.PlayerState.PLAYING) startPolling()
             else if (intervalRef.current) clearInterval(intervalRef.current)
           },
@@ -144,7 +149,8 @@ export function YouTubePlayerWithQuiz({ lessonId, videoId, cues, onAllCuesComple
     for (const [qi, answer] of Object.entries(answers)) payload[qi] = answer
     const result = await gradeVideoCueAnswers(lessonId, cue.timestamp, payload)
     setMarking(false)
-    if (result.error || !result.results) return
+    if ("error" in result) { toast.error(result.error); return }
+    if (!result.results) return
     const results: Record<number, CueResult> = {}
     result.results.forEach((r, qi) => {
       results[qi] = r

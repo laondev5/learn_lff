@@ -73,7 +73,7 @@ function ResetPasswordForm({ token }: { token: string }) {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <CheckCircle2 className="mx-auto h-10 w-10 text-primary" />
-          <CardTitle className="text-xl font-semibold">Password reset complete</CardTitle>
+          <CardTitle className="text-xl font-semibold">Password set</CardTitle>
           <CardDescription>Your new password is active on this account.</CardDescription>
         </CardHeader>
         <CardFooter>
@@ -89,7 +89,7 @@ function ResetPasswordForm({ token }: { token: string }) {
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl font-semibold">Choose a new password</CardTitle>
-        <CardDescription>Reset links expire after 30 minutes and can only be used once.</CardDescription>
+        <CardDescription>This link can only be used once. Ask for a fresh one if it has expired.</CardDescription>
       </CardHeader>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -147,7 +147,7 @@ function InvalidLinkCard() {
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl font-semibold">This link is not valid</CardTitle>
         <CardDescription>
-          Password reset links expire after 30 minutes. Request a fresh one to continue.
+          Password links expire and can only be used once. Request a fresh one to continue.
         </CardDescription>
       </CardHeader>
       <CardFooter>

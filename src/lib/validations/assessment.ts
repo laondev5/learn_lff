@@ -2,7 +2,7 @@ import { z } from "zod"
 
 export const assessmentQuestionSchema = z.object({
   text: z.string().min(1, "Question text is required"),
-  type: z.enum(["mcq", "true_false", "short_answer"]),
+  type: z.enum(["mcq", "true_false", "short_answer", "fill_blank"]),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().min(1, "Correct answer is required"),
   points: z.number().min(0, "Points must be non-negative"),

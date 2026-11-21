@@ -1,3 +1,4 @@
+import { getAssessmentAccess } from "@/lib/assessment-access"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
@@ -37,6 +38,9 @@ export async function POST(
     if (!assessment.isPublished) {
       return NextResponse.json({ error: "Assessment is not available yet" }, { status: 403 })
     }
+
+    const access = await getAssessmentAccess(studentId, assessment)
+    if (!access.allowed) return NextResponse.json({ error: access.reason }, { status: 403 })
 
     // 2. Verify student enrollment in the course
     const enrollment = await StudentProgress.findOne({
@@ -183,6 +187,9 @@ export async function GET(
     if (!assessment.isPublished) {
       return NextResponse.json({ error: "Assessment is not available yet" }, { status: 403 })
     }
+
+    const access = await getAssessmentAccess(studentId, assessment)
+    if (!access.allowed) return NextResponse.json({ error: access.reason }, { status: 403 })
 
     const enrollment = await StudentProgress.findOne({
       student: studentId,

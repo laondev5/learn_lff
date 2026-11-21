@@ -8,81 +8,87 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { pdf } from "@react-pdf/renderer"
 import { CertificatePDF } from "@/components/student/CertificatePDF"
 
+export interface CertificateDesignData {
+  title: string
+  institutionName: string
+  logos: string[]
+  signatures: { name: string; role: string; url: string | null }[]
+}
+
 interface CertData {
   id: string
   courseTitle: string
   courseId: string
   issuedAt: string
+  serial: string | null
   pdfUrl: string | null
+}
+
+/** react-pdf needs absolute URLs, while uploads are served from relative /api/files paths. */
+function absolute(url: string) {
+  return /^https?:/i.test(url) ? url : new URL(url, window.location.origin).toString()
 }
 
 export function CertificateCard({
   cert,
   studentName,
-  orgName,
-  logoUrl,
-  signatureUrl,
+  design,
 }: {
   cert: CertData
   studentName: string
-  orgName: string
-  logoUrl: string | null
-  signatureUrl: string | null
+  design: CertificateDesignData
 }) {
   const [generating, setGenerating] = useState(false)
 
   async function handleDownload() {
     setGenerating(true)
     try {
-      const doc = (
+      const blob = await pdf(
         <CertificatePDF
           studentName={studentName}
           courseTitle={cert.courseTitle}
-          orgName={orgName}
+          title={design.title}
+          institutionName={design.institutionName}
           issuedAt={cert.issuedAt}
-          logoUrl={logoUrl}
-          signatureUrl={signatureUrl}
-        />
-      )
-      const blob = await pdf(doc).toBlob()
+          serial={cert.serial}
+          logos={design.logos.map(absolute)}
+          signatures={design.signatures.map((s) => ({ ...s, url: s.url ? absolute(s.url) : null }))}
+        />,
+      ).toBlob()
       const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `Certificate-${cert.courseTitle.replace(/\s+/g, "-")}.pdf`
-      a.click()
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${design.title.replace(/\s+/g, "-")}-${cert.courseTitle.replace(/\s+/g, "-")}.pdf`
+      link.click()
       URL.revokeObjectURL(url)
     } catch {
       toast.error("Failed to generate certificate")
+    } finally {
+      setGenerating(false)
     }
-    setGenerating(false)
   }
 
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
-          <Award className="h-8 w-8 text-yellow-500 shrink-0 mt-0.5" />
+          <Award className="mt-0.5 h-8 w-8 shrink-0 text-yellow-500" />
           <div>
             <CardTitle className="text-base leading-snug">{cert.courseTitle}</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Issued {new Date(cert.issuedAt).toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {design.title} · issued {new Date(cert.issuedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
             </p>
+            {cert.serial && <p className="mt-1 text-xs font-mono text-muted-foreground">No. {cert.serial}</p>}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1" />
+      <CardContent className="flex-1">
+        <p className="text-xs text-muted-foreground">Issued by {design.institutionName}</p>
+      </CardContent>
       <CardFooter>
         <Button onClick={handleDownload} disabled={generating} variant="outline" className="w-full">
-          {generating ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          Download Certificate
+          {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          Download certificate
         </Button>
       </CardFooter>
     </Card>

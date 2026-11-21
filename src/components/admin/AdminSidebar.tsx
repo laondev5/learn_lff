@@ -5,6 +5,9 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
+  BookOpen,
+  CalendarDays,
+  CreditCard,
   LayoutDashboard,
   Users,
   Settings,
@@ -18,6 +21,9 @@ const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/courses", label: "Courses", icon: BookOpen },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/cohorts", label: "Cohorts & Appeals", icon: CalendarDays },
   { href: "/admin/settings", label: "System Settings", icon: Settings },
 ]
 

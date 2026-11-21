@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 
 
-type QuestionType = "mcq" | "true_false" | "short_answer"
+type QuestionType = "mcq" | "true_false" | "short_answer" | "fill_blank"
 
 interface Question {
   _id?: string
@@ -81,7 +81,7 @@ export function AssessmentBuilderClient({
         } else if (patch.type === "mcq" && q.type !== "mcq") {
           updated.options = ["", "", "", ""]
           updated.correctAnswer = ""
-        } else if (patch.type === "short_answer") {
+        } else if (patch.type === "short_answer" || patch.type === "fill_blank") {
           updated.options = []
         }
         return updated
@@ -307,6 +307,7 @@ function QuestionEditor({
                 <SelectItem value="mcq">Multiple Choice</SelectItem>
                 <SelectItem value="true_false">True / False</SelectItem>
                 <SelectItem value="short_answer">Short Answer</SelectItem>
+                <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -354,18 +355,25 @@ function QuestionEditor({
             </div>
           )}
 
-          {question.type === "short_answer" && (
+          {(question.type === "short_answer" || question.type === "fill_blank") && (
             <div className="space-y-3">
-              <Label>Model / Expected Answer</Label>
-              <Input 
-                value={question.correctAnswer} 
-                onChange={(e) => onUpdate({ correctAnswer: e.target.value })} 
-                placeholder="Enter exact expected answer (case-insensitive)" 
+              <Label>{question.type === "fill_blank" ? "Answer for the blank" : "Model / Expected Answer"}</Label>
+              {question.type === "fill_blank" && (
+                <p className="text-xs text-muted-foreground">
+                  Write the question with underscores for the gap, e.g. &quot;Repentance is a ______ of faith&quot;, then enter the word for the gap below.
+                </p>
+              )}
+              <Input
+                value={question.correctAnswer}
+                onChange={(e) => onUpdate({ correctAnswer: e.target.value })}
+                placeholder={question.type === "fill_blank" ? "Word or phrase that fills the gap" : "Enter exact expected answer (case-insensitive)"}
                 required
               />
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                Short answers are graded automatically based on exact text match.
+                {question.type === "fill_blank"
+                  ? "Fill-in-the-blank answers are graded automatically, ignoring case and punctuation."
+                  : "Short answers are graded automatically based on exact text match."}
               </p>
             </div>
           )}

@@ -1,5 +1,6 @@
 import "server-only"
 import { Types } from "mongoose"
+import { parseR2Url, deleteR2Video } from "@/lib/r2"
 import cloudinary from "@/lib/cloudinary"
 import Course from "@/models/Course.model"
 import Module from "@/models/Module.model"
@@ -78,7 +79,7 @@ export interface MediaCleanupResult {
 }
 
 /**
- * Deletes Cloudinary files for the given URLs. Call this *after* removing the
+ * Deletes Cloudinary or R2 files for the given URLs. Call this *after* removing the
  * database records: any URL that is still referenced elsewhere (e.g. the same
  * video pasted into two lessons) is kept. Never throws, so a Cloudinary outage
  * can't block a course/module/lesson from being deleted.
@@ -90,7 +91,8 @@ export async function destroyCloudinaryMedia(urls: (string | null | undefined)[]
   await Promise.all(
     unique.map(async (url) => {
       const asset = parseCloudinaryUrl(url)
-      if (!asset) {
+      const r2Asset = parseR2Url(url)
+      if (!asset && !r2Asset) {
         result.skipped.push(url) // not one of our uploads (YouTube, external link, …)
         return
       }
@@ -99,6 +101,12 @@ export async function destroyCloudinaryMedia(urls: (string | null | undefined)[]
           result.skipped.push(url)
           return
         }
+        if (r2Asset) {
+          await deleteR2Video(url)
+          result.deleted.push(url)
+          return
+        }
+        if (!asset) return
         const res = await cloudinary.uploader.destroy(asset.publicId, {
           resource_type: asset.resourceType,
           invalidate: true, // also purge CDN copies and derived (compressed) versions
@@ -106,15 +114,15 @@ export async function destroyCloudinaryMedia(urls: (string | null | undefined)[]
         // "not found" means it was already gone, which is the outcome we want
         if (res?.result === "ok" || res?.result === "not found") result.deleted.push(url)
         else result.failed.push(url)
-      } catch (err) {
-        console.error("[media-cleanup] Failed to delete", asset.publicId, err)
+      } catch {
+        console.error("[media-cleanup] Failed to delete media")
         result.failed.push(url)
       }
     })
   )
 
   if (result.failed.length) {
-    console.error(`[media-cleanup] ${result.failed.length} Cloudinary file(s) could not be deleted`, result.failed)
+    console.error(`[media-cleanup] ${result.failed.length} media file(s) could not be deleted`, result.failed)
   }
   return result
 }

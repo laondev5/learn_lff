@@ -1,3 +1,4 @@
+import { getAssessmentAccess } from "@/lib/assessment-access"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
@@ -58,6 +59,9 @@ export async function POST(
     if (!assessment.isPublished) {
       return NextResponse.json({ error: "Assessment is not available" }, { status: 403 })
     }
+
+    const access = await getAssessmentAccess(studentId, assessment)
+    if (!access.allowed) return NextResponse.json({ error: access.reason }, { status: 403 })
 
     // Only a student enrolled in the course may submit, and only from a session
     // they actually started.

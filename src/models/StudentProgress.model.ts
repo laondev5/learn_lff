@@ -4,6 +4,7 @@ import mongoose, { Document, Model, Schema, Types } from "mongoose"
 export interface IStudentProgress extends Document {
   student: Types.ObjectId
   course: Types.ObjectId
+  viewedLessons: Types.ObjectId[]
   completedLessons: Types.ObjectId[]
   completedTests: Types.ObjectId[]
   completedModules: Types.ObjectId[]
@@ -18,6 +19,7 @@ const StudentProgressSchema = new Schema<IStudentProgress>(
   {
     student: { type: Schema.Types.ObjectId, ref: "User", required: true },
     course: { type: Schema.Types.ObjectId, ref: "Course", required: true },
+    viewedLessons: [{ type: Schema.Types.ObjectId, ref: "Lesson" }],
     completedLessons: [{ type: Schema.Types.ObjectId, ref: "Lesson" }],
     completedTests: [{ type: Schema.Types.ObjectId, ref: "Test" }],
     completedModules: [{ type: Schema.Types.ObjectId, ref: "Module" }],

@@ -43,3 +43,10 @@ next-env.d.ts
 CLAUDE.md
 AGENT.md
 /.claude
+
+# Local presentation media paths
+.local-video-map.json
+.bot-test-accounts.json
+
+# Local run logs (dev servers, one-off diagnostics)
+*.log

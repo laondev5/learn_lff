@@ -37,8 +37,8 @@ const includes = [
 
 const steps = [
   {
-    title: "Sign in",
-    body: "Use the credentials issued to you by your assembly. If you have lost your password, reset it from the sign-in page.",
+    title: "Apply for a cohort",
+    body: "Create an account, choose an upcoming cohort, and invite your pastor as your accountability partner. Admission is pending until they accept.",
   },
   {
     title: "Open a course",
@@ -72,7 +72,7 @@ const roles = [
 const faqs = [
   {
     q: "I do not have an account yet.",
-    a: "Accounts are created by the church administration. Ask the pastor or the membership officer in your assembly to enrol you.",
+    a: "Choose Get started to create your account and apply for an upcoming cohort. Your pastor will receive an accountability invitation; admission remains pending until they accept.",
   },
   {
     q: "I cannot get in.",
@@ -165,10 +165,16 @@ export default function LandingPage() {
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-4">
                 <Link
-                  href="/auth/login"
+                  href="/apply"
                   className="rounded-sm bg-brand px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
                 >
-                  Sign in to the portal
+                  Get started — apply for a cohort
+                </Link>
+                <Link
+                  href="/courses"
+                  className="rounded-sm border border-gray-300 px-7 py-3.5 text-sm font-semibold text-ink transition-colors hover:border-brand hover:text-brand"
+                >
+                  Browse courses
                 </Link>
                 <a
                   href="#includes"
@@ -306,7 +312,7 @@ export default function LandingPage() {
                 Continue where your last class left off
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/75">
-                Sign in with the account your assembly gave you. Your lessons, notes and
+                Sign in with your student account. Your lessons, notes and
                 certificates are waiting on the other side.
               </p>
             </div>

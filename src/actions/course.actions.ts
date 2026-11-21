@@ -9,11 +9,12 @@ import Module from "@/models/Module.model"
 import Lesson from "@/models/Lesson.model"
 import Test from "@/models/Test.model"
 import Exam from "@/models/Exam.model"
-import { Types } from "mongoose"
+import { Types, type ClientSession } from "mongoose"
 import StudentProgress from "@/models/StudentProgress.model"
 import {
   deleteCoursesCascade, deleteLessonsCascade, destroyCloudinaryMedia, parseCloudinaryUrl,
 } from "@/lib/media-cleanup"
+import { deleteR2Image, parseR2ImageUrl } from "@/lib/r2-files"
 
 // ─── Courses ────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,54 @@ function getActionErrorMessage(error: unknown, fallback: string) {
     return error.message || fallback
   }
   return fallback
+}
+
+const ONE_VIDEO_ERROR = "This module already has a video lesson. Create a new module for another video."
+
+let transactionsAvailable: boolean | null = null
+
+/** Standalone MongoDB has no transactions; the guard then degrades to a checked write. */
+async function supportsTransactions() {
+  if (transactionsAvailable !== null) return transactionsAvailable
+  try {
+    const db = Module.db.db
+    if (!db) return (transactionsAvailable = false)
+    const hello = await db.admin().command({ hello: 1 })
+    transactionsAvailable = Boolean((hello.setName || hello.msg === "isdbgrid") && hello.logicalSessionTimeoutMinutes != null)
+  } catch { transactionsAvailable = false }
+  return transactionsAvailable
+}
+
+/** Serialize video additions on the module so simultaneous requests cannot both pass the check. */
+async function writeModuleVideo<T>(moduleId: Types.ObjectId | string, lessonId: string | null, write: (session?: ClientSession) => Promise<T>) {
+  const videoQuery = {
+    module: moduleId,
+    ...(lessonId ? { _id: { $ne: lessonId } } : {}),
+    $or: [{ lessonType: "video" as const }, { videoUrl: { $type: "string" as const, $ne: "" } }, { youtubeVideoId: { $type: "string" as const, $ne: "" } }],
+  }
+  if (!(await supportsTransactions())) {
+    const existing = lessonId ? await Lesson.findById(lessonId).lean() : null
+    const alreadyVideo = existing && (existing.lessonType === "video" || existing.videoUrl || existing.youtubeVideoId)
+    if (!alreadyVideo && await Lesson.exists(videoQuery)) throw new Error(ONE_VIDEO_ERROR)
+    return write()
+  }
+  const session = await Module.db.startSession()
+  try {
+    return await session.withTransaction(async () => {
+      const locked = await Module.updateOne({ _id: moduleId }, { $inc: { __v: 1 } }, { session })
+      if (!locked.matchedCount) throw new Error("Module not found")
+      const existing = lessonId ? await Lesson.findById(lessonId).session(session).lean() : null
+      // Existing videos can still be edited before a legacy module is restructured.
+      const alreadyVideo = existing && (existing.lessonType === "video" || existing.videoUrl || existing.youtubeVideoId)
+      if (!alreadyVideo && await Lesson.exists(videoQuery).session(session)) throw new Error(ONE_VIDEO_ERROR)
+      return write(session)
+    })
+  } finally { await session.endSession() }
+}
+
+function videoWriteError(error: unknown) {
+  if (error instanceof Error && [ONE_VIDEO_ERROR, "Module not found"].includes(error.message)) return error.message
+  return "Could not save the video safely. Please retry; if this continues, ask an administrator to check database transaction support."
 }
 
 const courseSchema = z.object({
@@ -329,7 +378,7 @@ const lessonSchema = z.object({
 
 const videoCueQuestionSchema = z.object({
   text: z.string().min(1),
-  type: z.enum(["mcq", "true_false", "short_answer"]),
+  type: z.enum(["mcq", "true_false", "short_answer", "fill_blank"]),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().min(1),
   points: z.coerce.number().min(1).default(1),
@@ -365,8 +414,9 @@ export async function createLesson(moduleId: string, formData: FormData) {
   const courseId = await ownedCourseOfModule(session.user.id, moduleId)
   if (!courseId) return { error: "Module not found" }
 
-  const count = await Lesson.countDocuments({ module: moduleId })
-  const lesson = await Lesson.create({
+  const create = async (transaction?: ClientSession) => {
+    const count = await Lesson.countDocuments({ module: moduleId }).session(transaction ?? null)
+    const [lesson] = await Lesson.create([{
     title: parsed.data.title,
     lessonType: parsed.data.lessonType,
     content: parsed.data.content,
@@ -377,7 +427,15 @@ export async function createLesson(moduleId: string, formData: FormData) {
     module: moduleId,
     course: courseId,
     order: count + 1,
-  })
+    }], transaction ? { session: transaction } : {})
+    return lesson
+  }
+
+  let lesson
+  try {
+    const hasVideo = parsed.data.lessonType === "video" || parsed.data.videoUrl || parsed.data.youtubeVideoId
+    lesson = hasVideo ? await writeModuleVideo(moduleId, null, create) : await create()
+  } catch (error) { return { error: videoWriteError(error) } }
 
   revalidatePath(`/teacher/courses/${courseId}/modules/${moduleId}`)
   return { success: true, lessonId: lesson._id.toString() }
@@ -408,14 +466,19 @@ export async function updateLesson(lessonId: string, formData: FormData) {
   if (!lesson) return { error: "Lesson not found" }
   if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
-  await Lesson.findByIdAndUpdate(lessonId, {
+  const update = (transaction?: ClientSession) => Lesson.findByIdAndUpdate(lessonId, {
     title: parsed.data.title,
     lessonType: parsed.data.lessonType,
     content: parsed.data.content,
     studentNotes: parsed.data.studentNotes || "",
     videoUrl: parsed.data.videoUrl || undefined,
     youtubeVideoId: parsed.data.youtubeVideoId || undefined,
-  })
+  }, transaction ? { session: transaction } : {}).exec()
+  try {
+    const hasVideo = parsed.data.lessonType === "video" || parsed.data.videoUrl || parsed.data.youtubeVideoId
+    if (hasVideo) await writeModuleVideo(lesson.module, lessonId, update)
+    else await update()
+  } catch (error) { return { error: videoWriteError(error) } }
 
   // Video swapped for a different one: remove the old upload
   if (parsed.data.videoUrl && lesson.videoUrl && lesson.videoUrl !== parsed.data.videoUrl) {
@@ -458,7 +521,7 @@ export async function saveLessonVideoUrl(lessonId: string, videoUrl: string) {
     const session = await auth()
     if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
-    if (!videoUrl.startsWith("http")) return { error: "Invalid URL" }
+    if (!z.url({ protocol: /^https?$/ }).safeParse(videoUrl).success) return { error: "Invalid URL" }
 
     await connectDB()
     const lesson = await Lesson.findById(lessonId)
@@ -466,10 +529,12 @@ export async function saveLessonVideoUrl(lessonId: string, videoUrl: string) {
     if (!(await ownsCourse(session.user.id, lesson.course))) return { error: "Lesson not found" }
 
     const previousVideoUrl = lesson.videoUrl
-    await Lesson.findByIdAndUpdate(lessonId, {
-      $set: { videoUrl },
-      $unset: { youtubeVideoId: 1 },
-    })
+    try {
+      await writeModuleVideo(lesson.module, lessonId, (transaction) => Lesson.findByIdAndUpdate(lessonId, {
+        $set: { videoUrl, lessonType: "video" },
+        $unset: { youtubeVideoId: 1 },
+      }, { session: transaction }).exec())
+    } catch (error) { return { error: videoWriteError(error) } }
 
     // The new video replaces the old one: remove the old upload from Cloudinary
     if (previousVideoUrl && previousVideoUrl !== videoUrl) {
@@ -551,6 +616,9 @@ export async function discardUnusedUpload(url: string) {
   const session = await auth()
   if (!session?.user || session.user.role !== "teacher") return { error: "Unauthorized" }
 
+  // Uploads now live in R2; legacy covers may still be Cloudinary URLs.
+  if (parseR2ImageUrl(url)) return { success: true, deleted: await deleteR2Image(url) }
+
   const asset = parseCloudinaryUrl(url)
   if (!asset || !/^lff-lms\/(videos|covers)\//.test(asset.publicId)) return { error: "Not a course upload" }
 
@@ -565,7 +633,7 @@ export async function discardUnusedUpload(url: string) {
 
 const questionSchema = z.object({
   text: z.string().min(3),
-  type: z.enum(["mcq", "true_false", "short_answer"]),
+  type: z.enum(["mcq", "true_false", "short_answer", "fill_blank"]),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().min(1),
   points: z.coerce.number().min(1).default(1),

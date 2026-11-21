@@ -6,7 +6,7 @@ export type AssessmentType = "quiz" | "test" | "attendance" | "exam"
 export interface IAssessmentQuestion {
   _id: Types.ObjectId
   text: string
-  type: "mcq" | "true_false" | "short_answer"
+  type: "mcq" | "true_false" | "short_answer" | "fill_blank"
   options?: string[]
   correctAnswer: string
   points: number
@@ -43,7 +43,7 @@ const AssessmentQuestionSchema = new Schema<IAssessmentQuestion>(
     text: { type: String, required: true },
     type: {
       type: String,
-      enum: ["mcq", "true_false", "short_answer"],
+      enum: ["mcq", "true_false", "short_answer", "fill_blank"],
       required: true,
     },
     options: [{ type: String }],

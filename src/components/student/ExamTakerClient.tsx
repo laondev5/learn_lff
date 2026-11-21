@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 interface Question {
   _id: string
   text: string
-  type: "mcq" | "true_false" | "short_answer"
+  type: "mcq" | "true_false" | "short_answer" | "fill_blank"
   options?: string[]
   points: number
 }
@@ -30,6 +30,42 @@ interface ExamData {
   totalMarks: number
   proctoringEnabled: boolean
   questions: Question[]
+}
+
+/** Renders a fill-in-the-blank question with an answer box for the missing word(s). */
+function FillInBlank({
+  text,
+  value,
+  onChange,
+}: {
+  text: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const parts = text.split(/_+/)
+  const blankCount = parts.length - 1
+  return (
+    <div className="space-y-3">
+      <p className="text-sm leading-relaxed">
+        {parts.map((part, i) => (
+          <span key={i}>
+            {part}
+            {i < blankCount && (
+              <span className="mx-1 inline-block min-w-[90px] border-b-2 border-primary/60 bg-primary/5 px-2 text-center font-semibold text-primary">
+                &nbsp;{blankCount > 1 ? `(${i + 1})` : "?"}&nbsp;
+              </span>
+            )}
+          </span>
+        ))}
+      </p>
+      <input
+        className="w-full border-2 rounded-lg p-3 text-sm bg-background focus:border-primary focus:ring-0 outline-none transition-all"
+        placeholder={blankCount > 1 ? "Enter the answers in order, separated by commas" : "Type the missing word..."}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  )
 }
 
 interface SessionData {
@@ -54,11 +90,14 @@ interface PreExamInfo {
 export function ExamTakerClient({
   assessmentId,
   courseId,
+  kind = "exam",
 }: {
   assessmentId: string
   courseId: string
+  kind?: "exam" | "module-test"
 }) {
   const router = useRouter()
+  const isFinalExam = kind !== "module-test"
   
   // State
   const [loading, setLoading] = useState(true)
@@ -406,7 +445,9 @@ export function ExamTakerClient({
           <CardHeader className="bg-primary/5 border-b pb-8">
             <div className="flex items-center gap-3 mb-2">
               <Info className="h-6 w-6 text-primary" />
-              <CardTitle className="text-2xl font-black">Pre-Exam Instructions</CardTitle>
+              <CardTitle className="text-2xl font-black">
+                {isFinalExam ? "Pre-Exam Instructions" : "Module Test Instructions"}
+              </CardTitle>
             </div>
             <p className="text-muted-foreground">Please read the following instructions carefully before starting.</p>
           </CardHeader>
@@ -435,7 +476,7 @@ export function ExamTakerClient({
                 <ul className="space-y-3 text-sm font-medium">
                   <li className="flex items-start gap-2">
                     <span className="text-destructive font-bold">•</span>
-                    <span><strong>Camera & Microphone Required:</strong> You will be prompted to allow access. If you refuse, you will not be allowed to write the exam.</span>
+                    <span><strong>Camera & Microphone Required:</strong> You will be prompted to allow access. If you refuse, you will not be allowed to write this assessment.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-destructive font-bold">•</span>
@@ -447,7 +488,7 @@ export function ExamTakerClient({
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-destructive font-bold">•</span>
-                    <span><strong>Auto-Submit:</strong> Accumulating 3 violations will automatically terminate and submit your exam.</span>
+                    <span><strong>Auto-Submit:</strong> Accumulating 3 violations will automatically terminate and submit your assessment.</span>
                   </li>
                 </ul>
               </div>
@@ -459,7 +500,7 @@ export function ExamTakerClient({
               onClick={handleStartClick}
             >
               <PlayCircle className="mr-2 h-6 w-6" />
-              I Understand, Start Exam
+              {isFinalExam ? "I Understand, Start Exam" : "I Understand, Start Module Test"}
             </Button>
           </CardContent>
         </Card>
@@ -494,12 +535,20 @@ export function ExamTakerClient({
             <div className="mx-auto h-16 w-16 rounded-full bg-background flex items-center justify-center mb-4">
               {result.passed ? <ShieldCheck className="h-10 w-10 text-primary" /> : <ShieldAlert className="h-10 w-10 text-destructive" />}
             </div>
-            <CardTitle className="text-2xl font-black">{result.passed ? "CONGRATULATIONS!" : "ASSESSMENT COMPLETED"}</CardTitle>
+            <CardTitle className="text-2xl font-black">
+              {result.passed
+                ? isFinalExam ? "CONGRATULATIONS!" : "MODULE TEST PASSED!"
+                : "ASSESSMENT COMPLETED"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="py-10 space-y-6">
             <div className="space-y-1">
               <p className="text-5xl font-black">{result.percentageScore}%</p>
-              <p className="text-muted-foreground font-medium">{result.passed ? "You passed the assessment" : "You did not reach the passing score"}</p>
+              <p className="text-muted-foreground font-medium">
+                {result.passed
+                  ? isFinalExam ? "You passed the assessment" : "You passed this module test"
+                  : "You did not reach the passing score"}
+              </p>
             </div>
             
             <div className="max-w-xs mx-auto">
@@ -510,7 +559,7 @@ export function ExamTakerClient({
               <Button asChild variant="outline" className="flex-1 font-bold">
                 <Link href={`/student/courses/${courseId}`}>Return to Course</Link>
               </Button>
-              {result.passed && (
+              {result.passed && isFinalExam && (
                 <Button asChild className="flex-1 font-bold">
                   <Link href="/student/certificates">Get Certificate</Link>
                 </Button>
@@ -586,7 +635,7 @@ export function ExamTakerClient({
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start gap-4">
                 <CardTitle className="text-base font-bold leading-tight">
-                  <span className="text-primary mr-2">Q{idx + 1}.</span> {q.text}
+                  <span className="text-primary mr-2">Q{idx + 1}.</span> {q.type === "fill_blank" ? "Fill in the gap" : q.text}
                 </CardTitle>
                 <Badge variant="outline" className="shrink-0">{q.points} Points</Badge>
               </div>
@@ -617,6 +666,13 @@ export function ExamTakerClient({
                     onChange={(e) => setAnswers((prev) => ({ ...prev, [q._id]: e.target.value }))}
                   />
                 </div>
+              )}
+              {q.type === "fill_blank" && (
+                <FillInBlank
+                  text={q.text}
+                  value={answers[q._id] ?? ""}
+                  onChange={(v) => setAnswers((prev) => ({ ...prev, [q._id]: v }))}
+                />
               )}
             </CardContent>
           </Card>

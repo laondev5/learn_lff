@@ -24,8 +24,11 @@ const nextConfig: NextConfig = {
 
     // Dev HMR uses a plain ws:// socket to this origin; production only ever needs
     // the encrypted Pusher socket.
+    const r2Origin = /^[a-f0-9]{32}$/.test(process.env.R2_ACCOUNT_ID ?? "")
+      ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : ""
     const connectSrc = [
       "connect-src 'self' blob: data:",
+      r2Origin,
       "https://api.paystack.co https://api.cloudinary.com https://*.pusher.com wss://*.pusher.com",
       "https://unpkg.com https://cdn.jsdelivr.net https://www.youtube.com https://s.ytimg.com",
       !isProd ? "ws:" : "",
@@ -55,7 +58,7 @@ const nextConfig: NextConfig = {
           connectSrc,
           "frame-src 'self' https://www.youtube.com",
           "img-src 'self' data: blob: https://*.cloudinary.com https://i.ytimg.com https://www.youtube.com",
-          "media-src 'self' blob: data: https://*.cloudinary.com https://*.youtube.com",
+          `media-src 'self' blob: data: https://*.cloudinary.com https://*.youtube.com ${r2Origin}`,
           "font-src 'self' data:",
           "style-src 'self' 'unsafe-inline'",
           "object-src 'none'",

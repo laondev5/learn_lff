@@ -1,3 +1,4 @@
+import { getAssessmentAccess } from "@/lib/assessment-access"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
@@ -37,11 +38,20 @@ export async function POST(
         student: session.user.id,
         status: "active",
       }),
-      Assessment.findById(id).select("durationMinutes"),
+      Assessment.findById(id).select("durationMinutes course module type isPublished"),
     ])
 
     if (!proctoringSession) {
       return NextResponse.json({ error: "No active session found" }, { status: 404 })
+    }
+
+    if (!assessment || !assessment.isPublished) return NextResponse.json({ error: "Assessment unavailable" }, { status: 403 })
+    const access = await getAssessmentAccess(session.user.id, assessment)
+    if (!access.allowed) {
+      proctoringSession.status = "expired"
+      proctoringSession.endTime = new Date()
+      await proctoringSession.save()
+      return NextResponse.json({ error: access.reason }, { status: 403 })
     }
 
     // 0. The server clock, not the student's browser, owns the exam deadline.

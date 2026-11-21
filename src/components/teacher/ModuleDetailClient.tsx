@@ -1,5 +1,6 @@
 "use client"
 
+import { uploadVideo, discardR2Upload } from "@/lib/upload-video"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -22,75 +23,13 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import {
-  createLesson, toggleLessonPublished, deleteLesson, discardUnusedUpload,
+  createLesson, toggleLessonPublished, deleteLesson,
 } from "@/actions/course.actions"
 import { Stepper, StepHint, VisibilityToggle, type StepItem } from "@/components/teacher/Stepper"
 import { cn } from "@/lib/utils"
 
 const MAX_VIDEO_INPUT_SIZE = 500 * 1024 * 1024 // 500 MB max before compression
 const COMPRESS_THRESHOLD = 100 * 1024 * 1024 // auto-compress anything ≥ 100 MB
-const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB per upload chunk
-
-async function uploadToCloudinary(
-  file: File,
-  onProgress: (pct: number) => void
-): Promise<string> {
-  const sigRes = await fetch("/api/video/sign")
-  if (!sigRes.ok) throw new Error("Failed to get upload credentials")
-  const { cloudName, apiKey, timestamp, signature, folder } = await sigRes.json()
-
-  const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-  let secureUrl = ""
-
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE
-    const end = Math.min(start + CHUNK_SIZE, file.size)
-    const chunk = file.slice(start, end)
-
-    await new Promise<void>((resolve, reject) => {
-      const fd = new FormData()
-      fd.append("file", chunk)
-      fd.append("api_key", apiKey)
-      fd.append("timestamp", String(timestamp))
-      fd.append("signature", signature)
-      fd.append("folder", folder)
-
-      const xhr = new XMLHttpRequest()
-      xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`)
-      xhr.setRequestHeader("X-Unique-Upload-Id", uploadId)
-      xhr.setRequestHeader("Content-Range", `bytes ${start}-${end - 1}/${file.size}`)
-
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) {
-          const chunkPct = ev.loaded / ev.total
-          onProgress(Math.round(((i + chunkPct) / totalChunks) * 100))
-        }
-      }
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText)
-          secureUrl = data.secure_url
-          onProgress(Math.round(((i + 1) / totalChunks) * 100))
-          resolve()
-        } else {
-          try {
-            const errData = JSON.parse(xhr.responseText)
-            reject(new Error(errData?.error?.message ?? `Upload failed (${xhr.status})`))
-          } catch {
-            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`))
-          }
-        }
-      }
-      xhr.onerror = () => reject(new Error("Network error during upload"))
-      xhr.send(fd)
-    })
-  }
-
-  return secureUrl
-}
-
 function isValidUrl(value: string) {
   try {
     const u = new URL(value)
@@ -246,7 +185,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
       } else if (videoFile) {
         setUploading(true)
         try {
-          videoUrl = await uploadToCloudinary(videoFile, setUploadProgress)
+          videoUrl = await uploadVideo(videoFile, setUploadProgress)
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Upload failed")
           setUploading(false)
@@ -267,7 +206,7 @@ export function ModuleDetailClient({ mod }: { mod: ModuleData }) {
     if ("error" in result && result.error) {
       toast.error(result.error)
       // The video reached Cloudinary but the lesson wasn't saved: don't leave it behind
-      if (videoSource === "upload" && videoUrl) discardUnusedUpload(videoUrl)
+      if (videoSource === "upload" && videoUrl) discardR2Upload(videoUrl)
     } else if ("lessonId" in result) {
       if (visible && result.lessonId) await toggleLessonPublished(result.lessonId)
       setCreatedLessonId(result.lessonId ?? null)

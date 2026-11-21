@@ -8,27 +8,80 @@ import Module from "@/models/Module.model"
 import Lesson from "@/models/Lesson.model"
 import Test from "@/models/Test.model"
 import Assessment from "@/models/Assessment.model"
-import StudentProgress from "@/models/StudentProgress.model"
+import StudentProgress, { type IStudentProgress } from "@/models/StudentProgress.model"
+import type { HydratedDocument } from "mongoose"
 import TestSubmission from "@/models/TestSubmission.model"
+import Submission from "@/models/Submission.model"
 import ExamSubmission from "@/models/ExamSubmission.model"
 import Certificate from "@/models/Certificate.model"
 import PaymentTransaction from "@/models/PaymentTransaction.model"
 import { Types } from "mongoose"
 
+import { getStudentCourseAccess, getStudentModuleAccess, recordStudentModuleActivity, recordStudentLessonView, getModuleCompletionAtDeadline } from "@/lib/cohort-access"
+import { getAssessmentAccess } from "@/lib/assessment-access"
+import { issueCertificate } from "@/lib/certificate"
+
 import { initializePaystackPayment } from "@/lib/paystack"
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
+
+function accessMessage(access: { reason: string; startsAt?: Date | string | null; endsAt?: Date | string | null; opensAt?: Date | string | null; closesAt?: Date | string | null }) {
+  if (access.reason === "module_ended") {
+    return "This module's 24-hour window has closed. Your accountability partner and an administrator have been notified. Submit an appeal in Student appeals to reopen it for another 24 hours."
+  }
+  const format = (value: Date | string) => new Date(value).toLocaleString("en-GB", { timeZone: "Africa/Lagos", dateStyle: "medium", timeStyle: "short" }) + " (Lagos)"
+  const start = access.opensAt ?? access.startsAt
+  const end = access.closesAt ?? access.endsAt
+  return `Access unavailable: ${access.reason.replaceAll("_", " ")}.${start ? ` Opens ${format(start)}.` : ""}${end ? ` Deadline: ${format(end)}.` : " No access schedule is available."} Request help at /student/appeals.`
+}
+
+/** Assessment access can fail with a schedule code or a plain sentence from getAssessmentAccess. */
+function assessmentAccessMessage(access: { allowed: boolean; reason: string; startsAt?: Date | string | null; endsAt?: Date | string | null; opensAt?: Date | string | null; closesAt?: Date | string | null }) {
+  return access.reason.includes(" ") ? access.reason : accessMessage(access)
+}
+
+async function courseGuard(studentId: string, courseId: string) {
+  if (!Types.ObjectId.isValid(courseId)) return { error: "Course not found" }
+  const access = await getStudentCourseAccess(studentId, courseId)
+  return access.allowed ? null : { error: accessMessage(access) }
+}
+
+async function lessonGuard(studentId: string, lessonId: string) {
+  if (!Types.ObjectId.isValid(lessonId)) return { error: "Lesson not found" }
+  const lesson = await Lesson.findById(lessonId).lean()
+  if (!lesson?.isPublished) return { error: "Lesson not found" }
+  const courseError = await courseGuard(studentId, lesson.course.toString())
+  if (courseError) return courseError
+  const access = await getStudentModuleAccess(studentId, lesson.course.toString(), lesson.module.toString())
+  if (!access.allowed) return { error: accessMessage(access) }
+  const progress = await StudentProgress.findOne({ student: studentId, course: lesson.course }).lean()
+  if (!progress) return { error: "Not enrolled" }
+  const lessons = await Lesson.find({ module: lesson.module, isPublished: true }).sort({ order: 1, _id: 1 }).select("_id").lean()
+  const index = lessons.findIndex(l => l._id.toString() === lessonId)
+  if (index > 0 && !progress.completedLessons.some(id => id.equals(lessons[index - 1]._id))) {
+    return { error: "Complete the previous lesson in this module first" }
+  }
+  return null
+}
+
+async function visibleCurriculum(studentId: string, courseId: string, curriculum: Awaited<ReturnType<typeof loadPublishedCurriculum>>) {
+  const access = await Promise.all(curriculum.map(mod => getStudentModuleAccess(studentId, courseId, mod.id)))
+  return curriculum.filter((_, index) => access[index].allowed)
+}
 
 /** Published modules + lessons of a course, with lesson type and whether each lesson has a test. */
 async function loadPublishedCurriculum(courseId: string | Types.ObjectId) {
   const modules = await Module.find({ course: courseId, isPublished: true }).sort({ order: 1 }).lean()
   const moduleIds = modules.map((m) => m._id)
-  const [lessons, tests] = await Promise.all([
+  const [lessons, tests, moduleAssessments] = await Promise.all([
     Lesson.find({ module: { $in: moduleIds }, isPublished: true })
       .sort({ order: 1 })
       .select("title order lessonType module")
       .lean(),
     Test.find({ course: courseId, isPublished: true }).select("lesson").lean(),
+    Assessment.find({ course: courseId, module: { $in: moduleIds }, type: "test", isPublished: true })
+      .select("module title questions durationMinutes passingMarks maxAttempts")
+      .lean(),
   ])
   const lessonsWithTest = new Set(tests.map((t) => t.lesson.toString()))
 
@@ -45,6 +98,16 @@ async function loadPublishedCurriculum(courseId: string | Types.ObjectId) {
         order: l.order,
         lessonType: (l.lessonType ?? "text") as "video" | "text",
         hasTest: lessonsWithTest.has(l._id.toString()),
+      })),
+    moduleTests: moduleAssessments
+      .filter((a) => a.module?.toString() === mod._id.toString())
+      .map((a) => ({
+        id: a._id.toString(),
+        title: a.title,
+        questionCount: a.questions?.length ?? 0,
+        durationMinutes: a.durationMinutes,
+        passingMarks: a.passingMarks,
+        maxAttempts: a.maxAttempts,
       })),
   }))
 }
@@ -67,14 +130,28 @@ export async function initializeCoursePayment(courseId: string) {
   if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
 
   await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
   const course = await Course.findById(courseId).lean()
   if (!course || !course.isPublished) return { error: "Course not found" }
   if (!course.isPaid) return { error: "This course is free. Use direct enrollment." }
-  if (await StudentProgress.exists({ student: session.user.id, course: courseId })) {
-    return { error: "Already enrolled" }
+  if (await PaymentTransaction.exists({ student: session.user.id, course: courseId, status: "success", amount: { $gte: course.price ?? 0 } })) {
+    return { error: "This course has already been paid for" }
   }
   const price = course.price ?? 0
   if (!(price > 0)) return { error: "This course is free. Use direct enrollment." }
+
+  // Idempotent checkout: a double click or a retry reuses the open attempt instead of
+  // creating a second charge. A different price always starts a new attempt.
+  const openAttempt = await PaymentTransaction.findOne({
+    student: session.user.id,
+    course: courseId,
+    amount: price,
+    status: "pending",
+    authorizationUrl: { $exists: true, $ne: null },
+    createdAt: { $gt: new Date(Date.now() - 30 * 60 * 1000) },
+  }).sort({ createdAt: -1 }).lean()
+  if (openAttempt?.authorizationUrl) return { success: true, authorizationUrl: openAttempt.authorizationUrl }
 
   try {
     const paymentData = await initializePaystackPayment({
@@ -115,10 +192,12 @@ export async function getEnrolledCourses() {
     .filter((id): id is Types.ObjectId => !!id)
   const lessonCounts = await countVisibleLessons(courseIds)
 
+  const access = await Promise.all(courseIds.map(id => getStudentCourseAccess(session.user.id, id.toString())))
+  const allowedIds = new Set(courseIds.filter((_, i) => access[i].allowed).map(String))
   return progresses.flatMap((p) => {
     const course = p.course as unknown as PopulatedCourse | null
 
-    if (!course?._id) {
+    if (!course?._id || !allowedIds.has(course._id.toString())) {
       return []
     }
 
@@ -167,7 +246,8 @@ export async function getAvailableCourses() {
 
   const lessonCounts = await countVisibleLessons(courses.map((c) => c._id))
 
-  return courses.map((c) => ({
+  const access = await Promise.all(courses.map(c => getStudentCourseAccess(session.user.id, c._id.toString())))
+  return courses.filter((_, i) => access[i].allowed).map((c) => ({
     id: c._id.toString(),
     title: c.title,
     description: c.description,
@@ -186,6 +266,8 @@ export async function getCoursePreview(courseId: string) {
   if (!Types.ObjectId.isValid(courseId)) return null
 
   await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
   const [course, progress] = await Promise.all([
     Course.findById(courseId).populate("teacher", "name avatarUrl").lean(),
     StudentProgress.exists({ student: session.user.id, course: courseId }),
@@ -221,8 +303,9 @@ export async function getCoursePreview(courseId: string) {
       videoLessons: allLessons.filter((l) => l.lessonType === "video").length,
       textLessons: allLessons.filter((l) => l.lessonType === "text").length,
       tests: allLessons.filter((l) => l.hasTest).length,
+      moduleTests: curriculum.reduce((n, m) => n + m.moduleTests.length, 0),
     },
-    modules: curriculum,
+    modules: await visibleCurriculum(session.user.id, courseId, curriculum),
   }
 }
 
@@ -231,6 +314,8 @@ export async function enrollInCourse(courseId: string) {
   if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
 
   await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
   const course = await Course.findById(courseId).lean()
   if (!course || !course.isPublished) return { error: "Course not found" }
 
@@ -267,6 +352,8 @@ export async function getCourseForStudent(courseId: string) {
   if (!session?.user || session.user.role !== "student") return null
 
   await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
   const progress = await StudentProgress.findOne({
     student: session.user.id,
     course: courseId,
@@ -283,11 +370,66 @@ export async function getCourseForStudent(courseId: string) {
 
   // Same sequential rule as the lesson viewer: a lesson unlocks once the one before it
   // is complete; the first lesson of a module unlocks once the previous module is complete.
-  let prevModuleComplete = true
   let nextLesson: { id: string; title: string; moduleTitle: string } | null = null
-  const modulesData = curriculum.map((mod) => {
+  const visible = await visibleCurriculum(session.user.id, courseId, curriculum)
+
+  // Module tests are published assessments of type "test" attached to a module.
+  // Work out each one's status so the course page can link directly to it.
+  const testIds = visible.flatMap((m) => m.moduleTests.map((t) => t.id))
+  const testObjectIds = testIds.map((id) => new Types.ObjectId(id))
+  const [passedDocs, attemptDocs] = await Promise.all([
+    testObjectIds.length
+      ? Submission.find({ student: session.user.id, assessment: { $in: testObjectIds }, passed: true }).select("assessment").lean()
+      : Promise.resolve([]),
+    testObjectIds.length
+      ? Submission.aggregate<{ _id: Types.ObjectId; count: number }>([
+          { $match: { student: new Types.ObjectId(session.user.id), assessment: { $in: testObjectIds } } },
+          { $group: { _id: "$assessment", count: { $sum: 1 } } },
+        ])
+      : Promise.resolve([]),
+  ])
+  const passedTestIds = new Set(passedDocs.map((d) => d.assessment.toString()))
+  const attemptCounts = new Map(attemptDocs.map((d) => [d._id.toString(), d.count]))
+
+  type ModuleTestStatus = {
+    id: string
+    title: string
+    moduleId: string
+    moduleTitle: string
+    questionCount: number
+    durationMinutes: number
+    passingMarks: number
+    maxAttempts: number
+    status: "passed" | "available" | "locked"
+    reason?: string
+    attemptsLeft: number
+  }
+  const moduleTestStatuses = new Map<string, ModuleTestStatus>()
+  for (const mod of visible) {
+    if (mod.moduleTests.length === 0) continue
+    const access = await getAssessmentAccess(session.user.id, {
+      course: new Types.ObjectId(courseId),
+      module: new Types.ObjectId(mod.id),
+      type: "test",
+    })
+    for (const test of mod.moduleTests) {
+      const attemptsLeft = Math.max(0, test.maxAttempts - (attemptCounts.get(test.id) ?? 0))
+      const passed = passedTestIds.has(test.id)
+      const canTake = passed || access.allowed && attemptsLeft > 0
+      moduleTestStatuses.set(test.id, {
+        ...test,
+        moduleId: mod.id,
+        moduleTitle: mod.title,
+        status: canTake ? (passed ? "passed" : "available") : "locked",
+        reason: canTake ? undefined : !access.allowed ? assessmentAccessMessage(access) : `Maximum attempts (${test.maxAttempts}) reached`,
+        attemptsLeft,
+      })
+    }
+  }
+
+  const modulesData = visible.map((mod) => {
     const isCompleted = completedModuleIds.has(mod.id)
-    let prevLessonComplete = prevModuleComplete
+    let prevLessonComplete = true
     const lessons = mod.lessons.map((l) => {
       const done = completedLessonIds.has(l.id)
       const locked = !done && !prevLessonComplete
@@ -295,15 +437,19 @@ export async function getCourseForStudent(courseId: string) {
       prevLessonComplete = done
       return { ...l, isCompleted: done, locked }
     })
-    prevModuleComplete = isCompleted
-    return { ...mod, isCompleted, lessons }
+    return {
+      ...mod,
+      isCompleted,
+      lessons,
+      moduleTests: mod.moduleTests.map((t) => moduleTestStatuses.get(t.id)).filter((t): t is ModuleTestStatus => !!t),
+    }
   })
 
   const exam = await Assessment.findOne({ course: courseId, type: "exam", isPublished: true }).lean()
 
-  const totalLessons = modulesData.reduce((acc, mod) => acc + mod.lessons.length, 0)
-  const completedLessonsCount = modulesData.reduce(
-    (acc, mod) => acc + mod.lessons.filter((l) => l.isCompleted).length,
+  const totalLessons = curriculum.reduce((acc, mod) => acc + mod.lessons.length, 0)
+  const completedLessonsCount = curriculum.reduce(
+    (acc, mod) => acc + mod.lessons.filter((l) => completedLessonIds.has(l.id)).length,
     0
   )
 
@@ -318,10 +464,14 @@ export async function getCourseForStudent(courseId: string) {
     enrolledAt: progress.enrolledAt.toISOString(),
     nextLesson: nextLesson as { id: string; title: string; moduleTitle: string } | null,
     modules: modulesData,
+    moduleTests: [...moduleTestStatuses.values()],
+    passedModuleTestsCount: [...moduleTestStatuses.values()].filter((t) => t.status === "passed").length,
     hasExam: !!exam,
     examPassed: progress.examPassed,
     certificateIssued: progress.certificateIssued,
-    allModulesComplete: modulesData.every((m) => m.isCompleted),
+    allModulesComplete: curriculum.length > 0 && curriculum.every((m) => completedModuleIds.has(m.id)),
+    totalModules: curriculum.length,
+    completedModulesCount: curriculum.filter(m => completedModuleIds.has(m.id)).length,
     totalLessons,
     completedLessonsCount,
   }
@@ -334,6 +484,8 @@ export async function getLessonForStudent(lessonId: string) {
   if (!session?.user || session.user.role !== "student") return null
 
   await connectDB()
+  const accessError = await lessonGuard(session.user.id, lessonId)
+  if (accessError) return accessError
   const lesson = await Lesson.findById(lessonId).lean()
   if (!lesson || !lesson.isPublished) return null
 
@@ -404,6 +556,7 @@ export async function getLessonForStudent(lessonId: string) {
     courseId: lesson.course.toString(),
     moduleId: lesson.module.toString(),
     isCompleted,
+    isViewed: (progress.viewedLessons ?? []).some(id => id.toString() === lessonId) || isCompleted,
     nextLessonId,
     test: test
       ? {
@@ -437,6 +590,8 @@ export async function gradeVideoCueAnswers(
   if (!Types.ObjectId.isValid(lessonId)) return { error: "Lesson not found" }
 
   await connectDB()
+  const accessError = await lessonGuard(session.user.id, lessonId)
+  if (accessError) return accessError
   const lesson = await Lesson.findById(lessonId)
     .select("isPublished course videoCues")
     .lean()
@@ -467,6 +622,8 @@ export async function markLessonViewed(lessonId: string) {
   if (!session?.user || session.user.role !== "student") return { error: "Unauthorized" }
 
   await connectDB()
+  const accessError = await lessonGuard(session.user.id, lessonId)
+  if (accessError) return accessError
   const lesson = await Lesson.findById(lessonId).lean()
   if (!lesson) return { error: "Lesson not found" }
 
@@ -478,6 +635,9 @@ export async function markLessonViewed(lessonId: string) {
 
   const alreadyDone = progress.completedLessons.map((id) => id.toString()).includes(lessonId)
 
+  // Historical lesson completion is accepted; module completion alone is not proof of viewing.
+  await recordStudentLessonView(session.user.id, lesson.course.toString(), lesson.module.toString(), lessonId)
+  await StudentProgress.updateOne({ _id: progress._id }, { $addToSet: { viewedLessons: lesson._id } })
   // Only mark complete if no test (if there's a test, completion happens on test pass)
   const hasTest = await Test.exists({ lesson: lessonId, isPublished: true })
   if (!hasTest && !alreadyDone) {
@@ -487,6 +647,7 @@ export async function markLessonViewed(lessonId: string) {
     await checkModuleCompletion(progress._id.toString(), lesson.module.toString(), lesson.course.toString())
   }
 
+  await recordStudentModuleActivity(session.user.id, lesson.course.toString(), lesson.module.toString())
   revalidatePath(`/student/courses/${lesson.course.toString()}`)
   return { success: true }
 }
@@ -499,13 +660,21 @@ export async function submitTest(testId: string, answers: Record<string, string>
 
   await connectDB()
   const test = await Test.findById(testId).lean()
-  if (!test) return { error: "Test not found" }
+  if (!test?.isPublished) return { error: "Test not found" }
+  const accessError = await lessonGuard(session.user.id, test.lesson.toString())
+  if (accessError) return accessError
 
   const progress = await StudentProgress.findOne({
     student: session.user.id,
     course: test.course,
   })
   if (!progress) return { error: "Not enrolled" }
+
+  const lesson = await Lesson.findById(test.lesson).lean()
+  if (!lesson || !lesson.course.equals(test.course)) return { error: "Lesson not found" }
+  if (lesson.lessonType === "video" && !(progress.viewedLessons ?? []).some(id => id.equals(test.lesson)) && !progress.completedLessons.some(id => id.equals(test.lesson))) {
+    return { error: "Watch the video to the end before submitting the test" }
+  }
 
   // Check attempt count
   const attemptCount = await TestSubmission.countDocuments({
@@ -522,7 +691,10 @@ export async function submitTest(testId: string, answers: Record<string, string>
   const gradedAnswers = test.questions.map((q) => {
     const qId = (q._id as Types.ObjectId)
     const studentAnswer = answers[qId.toString()] ?? ""
-    const correct = q.correctAnswer.trim().toLowerCase() === studentAnswer.trim().toLowerCase()
+    const normalise = (v: string) => v.trim().toLowerCase().replace(/[.,;:'"’“”]/g, "").replace(/\s+/g, " ").trim()
+    const correct = (q.type as string) === "fill_blank"
+      ? normalise(q.correctAnswer) === normalise(studentAnswer)
+      : q.correctAnswer.trim().toLowerCase() === studentAnswer.trim().toLowerCase()
     totalPoints += q.points
     if (correct) earnedPoints += q.points
     return { questionId: qId, answer: studentAnswer }
@@ -530,6 +702,9 @@ export async function submitTest(testId: string, answers: Record<string, string>
 
   const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0
   const passed = score >= test.passingScore
+
+  const deadlineError = await lessonGuard(session.user.id, test.lesson.toString())
+  if (deadlineError) return deadlineError
 
   await TestSubmission.create({
     student: session.user.id,
@@ -562,6 +737,7 @@ export async function submitTest(testId: string, answers: Record<string, string>
     )
   }
 
+  await recordStudentModuleActivity(session.user.id, test.course.toString(), lesson.module.toString())
   revalidatePath(`/student/courses/${test.course.toString()}`)
   return { success: true, score, passed, passingScore: test.passingScore }
 }
@@ -582,9 +758,8 @@ async function checkModuleCompletion(
     moduleId = lesson.module.toString()
   }
 
-  const moduleLessons = await Lesson.find({ module: moduleId, isPublished: true }).lean()
-  const completedLessonIds = progress.completedLessons.map((id) => id.toString())
-  const allLessonsDone = moduleLessons.every((l) => completedLessonIds.includes(l._id.toString()))
+  const completion = await getModuleCompletionAtDeadline(String(progress.student), courseId, moduleId, new Date(Date.now() + 1))
+  const allLessonsDone = completion.complete
 
   if (allLessonsDone) {
     const alreadyDone = progress.completedModules.map((id) => id.toString()).includes(moduleId)
@@ -592,6 +767,53 @@ async function checkModuleCompletion(
       progress.completedModules.push(new Types.ObjectId(moduleId))
       await progress.save()
     }
+    await issueCertificateIfCourseComplete(progress, courseId)
+  }
+}
+
+/** Completing every published module earns the certificate of completion (idempotent). */
+async function issueCertificateIfCourseComplete(progress: HydratedDocument<IStudentProgress> | null, courseId: string) {
+  if (!progress) return
+  const total = await Module.countDocuments({ course: courseId, isPublished: true })
+  if (total === 0 || progress.completedModules.length < total) return
+  if (!progress.certificateIssued) {
+    progress.certificateIssued = true
+    await progress.save()
+  }
+  await issueCertificate(String(progress.student), courseId)
+}
+
+// ─── Module Tests ─────────────────────────────────────────────────────────────
+
+/** Validate access before mounting the generic assessment taker for a module test. */
+export async function getModuleTestForStudent(courseId: string, testId: string) {
+  const session = await auth()
+  if (!session?.user || session.user.role !== "student") return null
+  if (!Types.ObjectId.isValid(courseId) || !Types.ObjectId.isValid(testId)) return { error: "Module test not found" }
+
+  await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
+
+  const test = await Assessment.findOne({
+    _id: testId,
+    course: courseId,
+    type: "test",
+    isPublished: true,
+  }).lean()
+  if (!test?.module) return { error: "Module test not found" }
+
+  const access = await getAssessmentAccess(session.user.id, test)
+  if (!access.allowed) return { error: assessmentAccessMessage(access) }
+
+  const attempts = await Submission.countDocuments({ student: session.user.id, assessment: test._id })
+  if (attempts >= test.maxAttempts) return { error: `Maximum attempts (${test.maxAttempts}) reached` }
+
+  return {
+    id: test._id.toString(),
+    title: test.title,
+    courseId,
+    moduleId: test.module.toString(),
   }
 }
 
@@ -602,6 +824,8 @@ export async function getExamForStudent(courseId: string) {
   if (!session?.user || session.user.role !== "student") return null
 
   await connectDB()
+  const accessError = await courseGuard(session.user.id, courseId)
+  if (accessError) return accessError
   const progress = await StudentProgress.findOne({
     student: session.user.id,
     course: courseId,
@@ -611,7 +835,7 @@ export async function getExamForStudent(courseId: string) {
   // Check all modules complete
   const modules = await Module.find({ course: courseId, isPublished: true }).lean()
   const completedModuleIds = progress.completedModules.map((id) => id.toString())
-  const allDone = modules.every((m) => completedModuleIds.includes(m._id.toString()))
+  const allDone = modules.length > 0 && modules.every((m) => completedModuleIds.includes(m._id.toString()))
   if (!allDone) return { error: "Complete all modules before taking the exam" }
 
   if (progress.examPassed) return { error: "You have already passed this exam" }
@@ -650,7 +874,10 @@ export async function submitExam(examId: string, answers: Record<string, string>
 
   await connectDB()
   const exam = await Assessment.findById(examId).lean()
-  if (!exam) return { error: "Exam not found" }
+  if (!exam?.isPublished || exam.type !== "exam") return { error: "Exam not found" }
+  const accessError = await getExamForStudent(exam.course.toString())
+  if (!accessError) return { error: "Not enrolled" }
+  if ("error" in accessError) return accessError
 
   const progress = await StudentProgress.findOne({
     student: session.user.id,
@@ -684,6 +911,9 @@ export async function submitExam(examId: string, answers: Record<string, string>
     exam: examId,
   })
 
+  const deadlineError = await courseGuard(session.user.id, exam.course.toString())
+  if (deadlineError) return deadlineError
+
   await ExamSubmission.create({
     student: session.user.id,
     exam: examId,
@@ -700,12 +930,8 @@ export async function submitExam(examId: string, answers: Record<string, string>
     progress.certificateIssued = true
     await progress.save()
 
-    // Create certificate record
-    await Certificate.findOneAndUpdate(
-      { student: session.user.id, course: exam.course },
-      { student: session.user.id, course: exam.course, issuedAt: new Date() },
-      { upsert: true }
-    )
+    // Issue (or reuse) the certificate of completion and its serial number.
+    await issueCertificate(session.user.id, exam.course.toString())
   }
 
   revalidatePath(`/student/courses/${exam.course.toString()}`)

@@ -35,7 +35,7 @@ export default async function StudentCoursesPage() {
               </p>
             </div>
             <Button asChild>
-              <Link href="/student/dashboard#available">Browse courses</Link>
+              <Link href="/courses">Browse courses</Link>
             </Button>
           </CardContent>
         </Card>

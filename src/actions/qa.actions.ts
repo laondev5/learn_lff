@@ -1,5 +1,7 @@
 "use server"
 
+import { getStudentCourseAccess } from "@/lib/cohort-access"
+
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import CourseQuestion, { IQuestionAnswer } from "@/models/CourseQuestion.model"
@@ -19,7 +21,7 @@ async function canParticipateInCourseQA(user: SessionUser, courseId: string) {
     return { allowed: !!(await Course.exists({ _id: courseId, teacher: user.id })) }
   }
   return {
-    allowed: !!(await StudentProgress.exists({ student: user.id, course: courseId })),
+    allowed: (await getStudentCourseAccess(user.id, courseId)).allowed && !!(await StudentProgress.exists({ student: user.id, course: courseId })),
   }
 }
 

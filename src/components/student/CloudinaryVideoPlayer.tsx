@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "sonner"
 import { gradeVideoCueAnswers } from "@/actions/student.actions"
 
 interface CueQuestion {
@@ -24,12 +25,13 @@ interface Props {
   lessonId: string
   videoUrl: string
   cues: VideoCue[]
+  onEnded?: () => void
   onAllCuesComplete?: () => void
 }
 
 type CueResult = { correct: boolean; correctAnswer: string }
 
-export function CloudinaryVideoPlayer({ lessonId, videoUrl, cues, onAllCuesComplete }: Props) {
+export function CloudinaryVideoPlayer({ lessonId, videoUrl, cues, onAllCuesComplete, onEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   // Use refs for values read inside event handlers to avoid stale closures
@@ -72,7 +74,8 @@ export function CloudinaryVideoPlayer({ lessonId, videoUrl, cues, onAllCuesCompl
     for (const [qi, answer] of Object.entries(answers)) payload[qi] = answer
     const result = await gradeVideoCueAnswers(lessonId, cue.timestamp, payload)
     setMarking(false)
-    if (result.error || !result.results) return
+    if ("error" in result) { toast.error(result.error); return }
+    if (!result.results) return
     const results: Record<number, CueResult> = {}
     result.results.forEach((r, qi) => {
       results[qi] = r
@@ -107,6 +110,8 @@ export function CloudinaryVideoPlayer({ lessonId, videoUrl, cues, onAllCuesCompl
           controls
           className="w-full h-full"
           onTimeUpdate={handleTimeUpdate}
+          onEnded={onEnded}
+          onError={() => toast.error("Video could not load. Refresh the page to check your access and retry.")}
           controlsList="nodownload noremoteplayback"
           disablePictureInPicture
           onContextMenu={(e) => e.preventDefault()}

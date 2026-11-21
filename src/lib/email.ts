@@ -89,6 +89,33 @@ export function passwordResetEmailHtml(name: string, resetUrl: string, expiresAt
   `
 }
 
+export function setPasswordEmailHtml(name: string, cohort: string, url: string, expiresAt: Date) {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Your LFF LMS account is ready</title>
+      </head>
+      <body style="font-family: sans-serif; background: #f4f4f4; padding: 24px;">
+        <div style="max-width: 520px; margin: auto; background: #fff; border-radius: 8px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <h2 style="color: #1e293b; margin-top: 0;">You have been admitted to ${cohort}</h2>
+          <p>Hi <strong>${name}</strong>,</p>
+          <p>Your pastor accepted the accountability partner role, so your application for the LFF Learning Management System has been approved.</p>
+          <p>Set the password for your student account using the one-time link below. The link works once and expires on ${expiresAt.toUTCString()}.</p>
+          <p style="margin: 24px 0;">
+            <a href="${url}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 6px;">Set my password</a>
+          </p>
+          <p style="color: #64748b; font-size: 13px; word-break: break-all;">If the button does not work, paste this link into your browser:<br />${url}</p>
+          <p>Do not share this link. Anyone who opens it can set the password for your account.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #64748b; font-size: 13px; margin: 0;">This email was sent by LFF LMS. Please do not reply.</p>
+        </div>
+      </body>
+    </html>
+  `
+}
+
 export function urgentQuestionEmailHtml(teacherName: string, studentName: string, courseTitle: string, questionTitle: string, questionContent: string) {
   const appUrl = getAppUrl()
 

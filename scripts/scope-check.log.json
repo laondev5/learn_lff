@@ -1,0 +1,55 @@
+{
+  "base": "http://localhost:26814",
+  "generated": "2026-11-21T13:56:35.359Z",
+  "realAdmin": {
+    "email": "admin@learn.livingfaithfoundation.org",
+    "passwordSet": true
+  },
+  "botAccounts": {
+    "admin": {
+      "id": "6b018561aca42da69914df35",
+      "email": "bot-admin@lff.test",
+      "role": "admin"
+    },
+    "teacher": {
+      "id": "6b018562aca42da69914df36",
+      "email": "bot-teacher@lff.test",
+      "role": "teacher"
+    },
+    "student": {
+      "id": "6b018562aca42da69914df37",
+      "email": "bot-student@lff.test",
+      "role": "student"
+    }
+  },
+  "botPasswordStoredIn": ".bot-test-accounts.json (gitignored)",
+  "checks": [
+    {
+      "kind": "login",
+      "role": "admin",
+      "email": "admin@learn.livingfaithfoundation.org",
+      "loginOk": false,
+      "loginError": "meta is not defined",
+      "loginMeta": null,
+      "loginSession": null
+    },
+    {
+      "kind": "login",
+      "role": "teacher",
+      "email": "bot-teacher@lff.test",
+      "loginOk": false,
+      "loginError": "meta is not defined",
+      "loginMeta": null,
+      "loginSession": null
+    },
+    {
+      "kind": "login",
+      "role": "student",
+      "email": "bot-student@lff.test",
+      "loginOk": false,
+      "loginError": "meta is not defined",
+      "loginMeta": null,
+      "loginSession": null
+    }
+  ]
+}

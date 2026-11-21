@@ -1,3 +1,5 @@
+import { getAssessmentAccess } from "@/lib/assessment-access"
+import { getModuleCompletionAtDeadline, recordStudentModuleActivity } from "@/lib/cohort-access"
 import "server-only"
 import Assessment, { IAssessment } from "@/models/Assessment.model"
 import ProctoringSession, { IProctoringSession } from "@/models/ProctoringSession.model"
@@ -63,6 +65,9 @@ export async function processAssessmentSubmission(input: GradingInput) {
   const assessment = await Assessment.findById(assessmentId)
   if (!assessment) throw new Error("Assessment not found")
 
+  const access = await getAssessmentAccess(String(studentId), assessment)
+  if (!access.allowed) throw new Error(access.reason)
+
   // 2. Grading Engine
   let score = 0
   const gradedAnswers: IAnswer[] = assessment.questions.map(q => {
@@ -70,8 +75,12 @@ export async function processAssessmentSubmission(input: GradingInput) {
     const studentAnswer = answers.find(a => a.questionId === qId)
     const answerText = studentAnswer ? studentAnswer.answer : ""
     
-    // Simple grading (case-insensitive for MCQ/TF/ShortAnswer)
-    const isCorrect = answerText.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
+    // Grading: fill-in-the-blank answers are normalised (case, punctuation and
+    // surrounding whitespace ignored); other types use case-insensitive exact match.
+    const normalise = (v: string) => v.trim().toLowerCase().replace(/[.,;:'"’“”]/g, "").replace(/\s+/g, " ").trim()
+    const isCorrect = q.type === "fill_blank"
+      ? normalise(answerText) === normalise(q.correctAnswer)
+      : answerText.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase()
     const pointsAwarded = isCorrect ? q.points : 0
     
     if (isCorrect) score += pointsAwarded
@@ -138,10 +147,12 @@ export async function processAssessmentSubmission(input: GradingInput) {
       
       // End-of-module module completion
       if (assessment.module && !progress.completedModules.includes(assessment.module as Types.ObjectId)) {
-        progress.completedModules.push(assessment.module as Types.ObjectId)
+        const completion = await getModuleCompletionAtDeadline(String(studentId), String(assessment.course), String(assessment.module), new Date(Date.now() + 1))
+        if (completion.complete) progress.completedModules.push(assessment.module as Types.ObjectId)
       }
       
       await progress.save()
+      if (assessment.module) await recordStudentModuleActivity(String(studentId), String(assessment.course), String(assessment.module))
     }
   }
 

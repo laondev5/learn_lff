@@ -2,7 +2,8 @@ import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import Certificate from "@/models/Certificate.model"
 import { getSystemConfig } from "@/actions/system.actions"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getCertificateDesign } from "@/lib/certificate"
+import { Card, CardContent } from "@/components/ui/card"
 import { Award } from "lucide-react"
 import { Types } from "mongoose"
 import { CertificateCard } from "@/components/student/CertificateCard"
@@ -13,16 +14,17 @@ async function getStudentCertificates(studentId: string) {
     .populate("course", "title")
     .lean()
 
-  return certs.map((c) => {
+  return Promise.all(certs.map(async (c) => {
     const course = c.course as unknown as { _id: Types.ObjectId; title: string }
     return {
       id: c._id.toString(),
       courseTitle: course.title,
       courseId: course._id.toString(),
       issuedAt: c.issuedAt.toISOString(),
+      serial: c.serial ?? null,
       pdfUrl: c.pdfUrl ?? null,
     }
-  })
+  }))
 }
 
 export default async function CertificatesPage() {
@@ -32,31 +34,37 @@ export default async function CertificatesPage() {
     getSystemConfig(),
   ])
 
+  const designs = await Promise.all(certificates.map((cert) =>
+    getCertificateDesign(cert.courseId, {
+      institutionName: config.organizationName,
+      logoUrl: config.logoUrl,
+      signatureUrl: config.signatureUrl,
+    }),
+  ))
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">My Certificates</h1>
-        <p className="text-muted-foreground text-sm mt-1">Certificates earned from completed courses</p>
+        <p className="mt-1 text-sm text-muted-foreground">Download your certificate of completion once you have finished every module and passed the exam.</p>
       </div>
 
       {certificates.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            <Award className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <Award className="mx-auto mb-3 h-12 w-12 opacity-40" />
             <p>No certificates yet.</p>
-            <p className="text-sm mt-1">Complete a course and pass the final exam to earn your first certificate.</p>
+            <p className="mt-1 text-sm">Complete all modules in a course to earn your certificate of completion.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {certificates.map((cert) => (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {certificates.map((cert, index) => (
             <CertificateCard
               key={cert.id}
               cert={cert}
               studentName={session!.user.name ?? "Student"}
-              orgName={config.organizationName}
-              logoUrl={config.logoUrl}
-              signatureUrl={config.signatureUrl}
+              design={designs[index]}
             />
           ))}
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -13,11 +13,11 @@ import { markLessonViewed, submitTest } from "@/actions/student.actions"
 import { YouTubePlayerWithQuiz } from "@/components/student/YouTubePlayerWithQuiz"
 import { CloudinaryVideoPlayer } from "@/components/student/CloudinaryVideoPlayer"
 
-type QuestionType = "mcq" | "true_false" | "short_answer"
+type QuestionType = "mcq" | "true_false" | "short_answer" | "fill_blank"
 
 interface CueQuestion {
   text: string
-  type: QuestionType
+  type: "mcq" | "true_false" | "short_answer"
   options: string[]
   points: number
 }
@@ -51,7 +51,7 @@ interface LessonData {
   lessonType: string
   content: string
   studentNotes?: string
-  videoKind: "cloudinary" | "youtube" | "direct" | null
+  videoKind: "cloudinary" | "r2" | "youtube" | "direct" | null
   videoUrl: string | null
   youtubeVideoId: string | null
   videoCues: VideoCue[]
@@ -70,6 +70,9 @@ export function LessonViewerClient({
   courseId: string
 }) {
   const router = useRouter()
+  const [viewed, setViewed] = useState(lesson.isCompleted)
+  const [videoEnded, setVideoEnded] = useState(false)
+  const viewPending = useRef(false)
   const [marking, setMarking] = useState(false)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -83,24 +86,43 @@ export function LessonViewerClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson.id])
 
-  async function handleMarkComplete() {
+  async function recordViewed(): Promise<boolean> {
+    if (viewPending.current) return false
+    viewPending.current = true
     setMarking(true)
-    await markLessonViewed(lesson.id)
-    toast.success("Lesson marked complete")
-    setMarking(false)
-    if (lesson.nextLessonId) {
-      router.push(`/student/courses/${courseId}/lessons/${lesson.nextLessonId}`)
-    } else {
-      router.push(`/student/courses/${courseId}`)
+    try {
+      const result = await markLessonViewed(lesson.id)
+      if ("error" in result) { toast.error(result.error); return false }
+      setViewed(true)
+      return true
+    } catch {
+      toast.error("Could not save your viewing progress. Please retry.")
+      return false
+    } finally {
+      viewPending.current = false
+      setMarking(false)
     }
+  }
+
+  async function handleVideoEnded() {
+    setVideoEnded(true)
+    await recordViewed()
+  }
+
+  async function handleMarkComplete() {
+    if (lesson.lessonType === "video" && !videoEnded && !viewed) return
+    if (!await recordViewed()) return
+    toast.success("Lesson marked complete")
+    router.push(lesson.nextLessonId ? `/student/courses/${courseId}/lessons/${lesson.nextLessonId}` : `/student/courses/${courseId}`)
   }
 
   async function handleSubmitTest(e: React.FormEvent) {
     e.preventDefault()
     if (!lesson.test) return
+    if (lesson.lessonType === "video" && !viewed) { toast.error("Watch the video to the end before submitting the test"); return }
     setSubmitting(true)
     const result = await submitTest(lesson.test.id, answers)
-    if (result.error) {
+    if ("error" in result) {
       toast.error(result.error)
     } else {
       setTestResult({ score: result.score!, passed: result.passed!, passingScore: result.passingScore! })
@@ -140,8 +162,10 @@ export function LessonViewerClient({
       <h1 className="text-2xl font-bold">{lesson.title}</h1>
 
       {/* Cloudinary video lesson */}
-      {isVideoLesson && lesson.videoKind === "cloudinary" && lesson.videoUrl && (
+      {isVideoLesson && ["cloudinary", "r2", "direct"].includes(lesson.videoKind ?? "") && lesson.videoUrl && (
         <CloudinaryVideoPlayer
+          key={lesson.id}
+          onEnded={handleVideoEnded}
           lessonId={lesson.id}
           videoUrl={lesson.videoUrl}
           cues={lesson.videoCues}
@@ -151,24 +175,12 @@ export function LessonViewerClient({
       {/* YouTube video lesson */}
       {isVideoLesson && lesson.videoKind === "youtube" && lesson.youtubeVideoId && (
         <YouTubePlayerWithQuiz
+          key={lesson.id}
+          onEnded={handleVideoEnded}
           lessonId={lesson.id}
           videoId={lesson.youtubeVideoId}
           cues={lesson.videoCues}
         />
-      )}
-
-      {/* Fallback: direct video source without download option */}
-      {isVideoLesson && lesson.videoKind === "direct" && lesson.videoUrl && (
-        <div className="aspect-video rounded-md overflow-hidden border bg-black">
-          <video
-            src={lesson.videoUrl}
-            controls
-            className="w-full h-full"
-            controlsList="nodownload noremoteplayback"
-            disablePictureInPicture
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        </div>
       )}
 
       {/* Text Content */}
@@ -193,7 +205,7 @@ export function LessonViewerClient({
 
       {/* Video lesson without test: mark complete button */}
       {isVideoLesson && !lesson.test && !lesson.isCompleted && (
-        <Button onClick={handleMarkComplete} disabled={marking}>
+        <Button onClick={handleMarkComplete} disabled={marking || (isVideoLesson && !videoEnded && !viewed)}>
           {marking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
           Mark as Complete
         </Button>
@@ -201,7 +213,7 @@ export function LessonViewerClient({
 
       {/* Text lesson without test: mark complete button */}
       {!isVideoLesson && !lesson.test && !lesson.isCompleted && (
-        <Button onClick={handleMarkComplete} disabled={marking}>
+        <Button onClick={handleMarkComplete} disabled={marking || (isVideoLesson && !videoEnded && !viewed)}>
           {marking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
           Mark as Complete
         </Button>
@@ -213,6 +225,13 @@ export function LessonViewerClient({
             Next Lesson <ChevronRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
+      )}
+
+      {isVideoLesson && !viewed && (
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>{marking ? "Saving viewing progress…" : "Watch the video to the end to unlock completion and the lesson test."}</p>
+          {videoEnded && !marking && <Button variant="outline" onClick={() => void recordViewed()}>Retry saving viewing progress</Button>}
+        </div>
       )}
 
       {/* Lesson Test */}
@@ -237,7 +256,7 @@ export function LessonViewerClient({
                 <Card key={q.id}>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium">
-                      {idx + 1}. {q.text}
+                      {idx + 1}. {q.type === "fill_blank" ? "Fill in the gap" : q.text}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -274,13 +293,36 @@ export function LessonViewerClient({
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                       />
                     )}
+                    {q.type === "fill_blank" && (
+                      <div className="space-y-2">
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                          {q.text.split(/_+/).map((part, i, arr) => (
+                            <span key={i}>
+                              {part}
+                              {i < arr.length - 1 && (
+                                <span className="mx-1 inline-block min-w-[80px] border-b-2 border-primary/60 bg-primary/5 px-2 text-center font-semibold text-primary">
+                                  {arr.length > 2 ? `(${i + 1})` : "?"}
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </p>
+                        <input
+                          type="text"
+                          className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                          placeholder={(q.text.match(/_+/g) ?? []).length > 1 ? "Answers in order, separated by commas" : "Missing word..."}
+                          value={answers[q.id] ?? ""}
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                        />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
 
               <Button
                 type="submit"
-                disabled={submitting || Object.keys(answers).length < lesson.test.questions.length}
+                disabled={submitting || marking || (isVideoLesson && !viewed) || Object.keys(answers).length < lesson.test.questions.length}
                 className="w-full"
               >
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
