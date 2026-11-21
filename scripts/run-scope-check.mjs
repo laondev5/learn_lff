@@ -102,8 +102,12 @@ const ROUTES = [
 
 async function main() {
   const results = []
-  const realAdminEmail = "admin@learn.livingfaithfoundation.org"
-  const realAdminPassword = "@#Skkywalker1998@$S"
+  const realAdminEmail = process.env.SCOPE_CHECK_ADMIN_EMAIL ?? "admin@learn.livingfaithfoundation.org"
+  const realAdminPassword = process.env.SCOPE_CHECK_ADMIN_PASSWORD
+  if (!realAdminPassword) {
+    console.error("Set SCOPE_CHECK_ADMIN_PASSWORD in the shell before running this check.")
+    process.exit(1)
+  }
 
   const folks = [
     { role: "admin", email: realAdminEmail, password: realAdminPassword },

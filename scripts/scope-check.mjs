@@ -113,8 +113,12 @@ function bodyPreview(text, n = 300) {
 }
 
 async function main() {
-  const realAdminEmail = "admin@learn.livingfaithfoundation.org"
-  const realAdminPassword = "@#Skkywalker1998@$S"
+  const realAdminEmail = process.env.SCOPE_CHECK_ADMIN_EMAIL ?? "admin@learn.livingfaithfoundation.org"
+  const realAdminPassword = process.env.SCOPE_CHECK_ADMIN_PASSWORD
+  if (!realAdminPassword) {
+    console.error("Set SCOPE_CHECK_ADMIN_PASSWORD in the shell before running this check.")
+    process.exit(1)
+  }
 
   const folks = [
     { role: "admin", email: realAdminEmail, password: realAdminPassword },
@@ -239,7 +243,7 @@ function renderTextLog(out) {
   lines.push("======================================================================")
   lines.push(`Summary: ${out.checks.filter((c) => c.kind === "route").length} route checks across 3 roles.`)
   lines.push(`Login used: real admin ${out.realAdmin.email} + 2 bot accounts (teacher, student).`)
-  lines.push(`Credentials: real admin password @#Skkywalker1998@$S hashed into DB; bot password lives only in .bot-test-accounts.json (gitignored).`)
+  lines.push(`Credentials: real admin password read from SCOPE_CHECK_ADMIN_PASSWORD; bot password lives only in .bot-test-accounts.json (gitignored).`)
   lines.push("======================================================================")
   return lines.join("\n")
 }
