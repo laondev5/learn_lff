@@ -8,6 +8,10 @@ export interface ICertificateTemplate {
   institutionName: string
   logos: { url: string; alt?: string }[]
   signatures: { name: string; role: string; url?: string }[]
+  /** Drag-and-drop design: absolute blocks on a 1000 × 707 canvas. */
+  layout?: unknown
+  /** Template the design was based on, for display in the admin gallery. */
+  templateId?: string
   isEnabled: boolean
   updatedAt: Date
 }
@@ -25,6 +29,8 @@ const schema = new Schema<ICertificateTemplate>({
     role: { type: String, trim: true, maxlength: 120 },
     url: { type: String },
   }],
+  layout: { type: Schema.Types.Mixed, default: null },
+  templateId: { type: String, trim: true, maxlength: 60 },
   isEnabled: { type: Boolean, default: true },
 }, { timestamps: true })
 

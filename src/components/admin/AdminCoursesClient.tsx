@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/table"
 import { Award, BookOpen, Loader2, Pencil, Plus } from "lucide-react"
 import { createAdminCourse, setAdminCoursePublished, updateAdminCourse, type getAdminCourses } from "@/actions/admin-course.actions"
-import { CertificateDesignDialog } from "@/components/admin/CertificateDesignDialog"
 
 type Data = Extract<Awaited<ReturnType<typeof getAdminCourses>>, { courses: unknown }>
 type Teacher = Data["teachers"][number]
@@ -34,7 +33,6 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [busy, setBusy] = useState(false)
   const [toggling, setToggling] = useState<string | null>(null)
-  const [certificateCourse, setCertificateCourse] = useState<AdminCourse | null>(null)
 
   function startCreate() {
     setEditing(null)
@@ -155,7 +153,7 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => startEdit(course)}>
                           <Pencil className="mr-1 h-3 w-3" /> Edit
                         </Button>
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCertificateCourse(course)}>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/admin/certificates?course=${course.id}`)}>
                           <Award className="mr-1 h-3 w-3" /> Certificate
                         </Button>
                         <Button
@@ -234,14 +232,6 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
           </form>
         </DialogContent>
       </Dialog>
-
-      {certificateCourse && (
-        <CertificateDesignDialog
-          courseId={certificateCourse.id}
-          courseTitle={certificateCourse.title}
-          onClose={() => setCertificateCourse(null)}
-        />
-      )}
 
       {courses.length === 0 && <p className="flex items-center gap-2 text-sm text-muted-foreground"><BookOpen className="h-4 w-4" /> Courses you create appear here and in the assigned teacher&apos;s workspace.</p>}
     </div>

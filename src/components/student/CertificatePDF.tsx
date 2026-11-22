@@ -1,4 +1,13 @@
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
+import {
+  DESIGN_HEIGHT,
+  DESIGN_WIDTH,
+  resolveText,
+  type CertificateContent,
+  type CertificateLayout,
+  type SignatureBlock,
+  type TextBlock,
+} from "@/lib/certificate-layout"
 
 const styles = StyleSheet.create({
   page: { backgroundColor: "#ffffff", padding: 46, fontFamily: "Helvetica", position: "relative" },
@@ -35,13 +44,168 @@ export interface CertificatePDFProps {
   serial: string | null
   logos: string[]
   signatures: { name: string; role: string; url: string | null }[]
+  layout?: CertificateLayout | null
+}
+
+/** A4 landscape in PDF points, matched to the 1000 × 707 design canvas. */
+const SCALE = 842 / DESIGN_WIDTH
+
+function pdfFont(block: TextBlock): string {
+  if (block.fontFamily === "sans") {
+    if (block.fontWeight === "bold") return block.italic ? "Helvetica-BoldOblique" : "Helvetica-Bold"
+    return block.italic ? "Helvetica-Oblique" : "Helvetica"
+  }
+  if (block.fontWeight === "bold") return block.italic ? "Times-BoldItalic" : "Times-Bold"
+  return block.italic ? "Times-Italic" : "Times-Roman"
+}
+
+function LayoutBorder({ layout }: { layout: CertificateLayout }) {
+  const { style, color, accent } = layout.border
+  if (style === "none") return null
+  if (style === "single") {
+    return <View style={{ position: "absolute", top: 20, left: 20, right: 20, bottom: 20, borderWidth: 1.5, borderColor: color }} />
+  }
+  if (style === "double") {
+    return (
+      <>
+        <View style={{ position: "absolute", top: 16, left: 16, right: 16, bottom: 16, borderWidth: 2.5, borderColor: color }} />
+        <View style={{ position: "absolute", top: 24, left: 24, right: 24, bottom: 24, borderWidth: 0.8, borderColor: accent }} />
+      </>
+    )
+  }
+  if (style === "frame") {
+    return (
+      <>
+        <View style={{ position: "absolute", top: 10, left: 10, right: 10, bottom: 10, borderWidth: 6, borderColor: color }} />
+        <View style={{ position: "absolute", top: 26, left: 26, right: 26, bottom: 26, borderWidth: 0.8, borderColor: accent }} />
+      </>
+    )
+  }
+  if (style === "side-band") {
+    return (
+      <>
+        <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 260, backgroundColor: color }} />
+        <View style={{ position: "absolute", top: 0, left: 260, bottom: 0, width: 4, backgroundColor: accent }} />
+      </>
+    )
+  }
+  if (style === "top-band") {
+    return (
+      <>
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 120, backgroundColor: color }} />
+        <View style={{ position: "absolute", top: 120, left: 0, right: 0, height: 5, backgroundColor: accent }} />
+      </>
+    )
+  }
+  // corner flourishes
+  const arm = 60
+  const thickness = 3
+  const inset = 18
+  return (
+    <>
+      <View style={{ position: "absolute", top: inset, left: inset, width: arm, height: thickness, backgroundColor: color }} />
+      <View style={{ position: "absolute", top: inset, left: inset, width: thickness, height: arm, backgroundColor: color }} />
+      <View style={{ position: "absolute", top: inset, right: inset, width: arm, height: thickness, backgroundColor: color }} />
+      <View style={{ position: "absolute", top: inset, right: inset, width: thickness, height: arm, backgroundColor: color }} />
+      <View style={{ position: "absolute", bottom: inset, left: inset, width: arm, height: thickness, backgroundColor: color }} />
+      <View style={{ position: "absolute", bottom: inset, left: inset, width: thickness, height: arm, backgroundColor: color }} />
+      <View style={{ position: "absolute", bottom: inset, right: inset, width: arm, height: thickness, backgroundColor: color }} />
+      <View style={{ position: "absolute", bottom: inset, right: inset, width: thickness, height: arm, backgroundColor: color }} />
+      <View style={{ position: "absolute", top: inset + 8, left: inset + 8, right: inset + 8, bottom: inset + 8, borderWidth: 0.6, borderColor: accent }} />
+    </>
+  )
+}
+
+function SignatureView({ block }: { block: SignatureBlock }) {
+  return (
+    <View style={{ position: "absolute", left: block.x * SCALE, top: block.y * SCALE, width: block.width * SCALE, alignItems: "center" }}>
+      {block.url ? (
+        <Image src={block.url} style={{ width: block.width * SCALE * 0.8, height: 42 * SCALE, objectFit: "contain", marginBottom: 2 }} />
+      ) : (
+        <View style={{ height: 42 * SCALE }} />
+      )}
+      <View style={{ width: "100%", height: 1, backgroundColor: block.color ?? "#333333", marginBottom: 3 }} />
+      {!!block.name && (
+        <Text style={{ fontSize: 10 * SCALE, fontFamily: "Helvetica-Bold", color: block.color ?? "#333333", textAlign: "center" }}>
+          {block.name}
+        </Text>
+      )}
+      <Text style={{ fontSize: 8 * SCALE, color: block.color ?? "#666666", textAlign: "center" }}>
+        {block.role || "Authorized Signature"}
+      </Text>
+    </View>
+  )
+}
+
+function LayoutCertificate({ layout, content }: { layout: CertificateLayout; content: CertificateContent }) {
+  return (
+    <Page size="A4" orientation="landscape" style={{ position: "relative", backgroundColor: layout.background, fontFamily: "Helvetica" }}>
+      <LayoutBorder layout={layout} />
+      {layout.blocks.map((block) => {
+        if (block.type === "divider") {
+          return (
+            <View
+              key={block.id}
+              style={{
+                position: "absolute",
+                left: block.x * SCALE,
+                top: block.y * SCALE,
+                width: block.width * SCALE,
+                height: Math.max(1, block.thickness * SCALE),
+                backgroundColor: block.color,
+              }}
+            />
+          )
+        }
+        if (block.type === "logo") {
+          if (!block.url) return null
+          return (
+            <Image
+              key={block.id}
+              src={block.url}
+              style={{ position: "absolute", left: block.x * SCALE, top: block.y * SCALE, width: block.width * SCALE, height: block.height * SCALE, objectFit: "contain" }}
+            />
+          )
+        }
+        if (block.type === "signature") return <SignatureView key={block.id} block={block} />
+        const value = resolveText(block, content)
+        if (!value) return null
+        return (
+          <View key={block.id} style={{ position: "absolute", left: block.x * SCALE, top: block.y * SCALE, width: block.width * SCALE }}>
+            <Text
+              style={{
+                fontFamily: pdfFont(block),
+                fontSize: block.fontSize * SCALE,
+                color: block.color,
+                textAlign: block.align,
+                letterSpacing: (block.letterSpacing ?? 0) * SCALE,
+              }}
+            >
+              {value}
+            </Text>
+          </View>
+        )
+      })}
+    </Page>
+  )
 }
 
 export function CertificatePDF({
-  studentName, courseTitle, title, institutionName, issuedAt, serial, logos, signatures,
+  studentName, courseTitle, title, institutionName, issuedAt, serial, logos, signatures, layout,
 }: CertificatePDFProps) {
   const formattedDate = new Date(issuedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
   const signers = signatures.length > 0 ? signatures.slice(0, 4) : [{ name: "", role: "Authorized Signature", url: null }]
+
+  if (layout && layout.blocks.length > 0) {
+    return (
+      <Document>
+        <LayoutCertificate
+          layout={layout}
+          content={{ institutionName, title, studentName, courseTitle, serial: serial ?? "", date: formattedDate }}
+        />
+      </Document>
+    )
+  }
 
   return (
     <Document>

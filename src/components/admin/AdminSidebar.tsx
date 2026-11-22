@@ -4,11 +4,13 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
+  Award,
   BarChart3,
   BookOpen,
   CalendarDays,
   CreditCard,
   LayoutDashboard,
+  Scale,
   Users,
   Settings,
   X,
@@ -23,7 +25,9 @@ const navItems = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/courses", label: "Courses", icon: BookOpen },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
-  { href: "/admin/cohorts", label: "Cohorts & Appeals", icon: CalendarDays },
+  { href: "/admin/cohorts", label: "Cohorts", icon: CalendarDays },
+  { href: "/admin/appeals", label: "Appeals", icon: Scale },
+  { href: "/admin/certificates", label: "Certificates", icon: Award },
   { href: "/admin/settings", label: "System Settings", icon: Settings },
 ]
 

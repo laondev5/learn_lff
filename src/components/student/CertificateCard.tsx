@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { pdf } from "@react-pdf/renderer"
 import { CertificatePDF } from "@/components/student/CertificatePDF"
+import type { CertificateLayout } from "@/lib/certificate-layout"
 
 export interface CertificateDesignData {
   title: string
   institutionName: string
   logos: string[]
   signatures: { name: string; role: string; url: string | null }[]
+  layout?: CertificateLayout | null
 }
 
 interface CertData {
@@ -53,6 +55,18 @@ export function CertificateCard({
           serial={cert.serial}
           logos={design.logos.map(absolute)}
           signatures={design.signatures.map((s) => ({ ...s, url: s.url ? absolute(s.url) : null }))}
+          layout={
+            design.layout
+              ? {
+                  ...design.layout,
+                  blocks: design.layout.blocks.map((block) => {
+                    if (block.type === "logo") return { ...block, url: block.url ? absolute(block.url) : "" }
+                    if (block.type === "signature") return { ...block, url: block.url ? absolute(block.url) : "" }
+                    return block
+                  }),
+                }
+              : null
+          }
         />,
       ).toBlob()
       const url = URL.createObjectURL(blob)

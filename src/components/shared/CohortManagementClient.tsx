@@ -18,7 +18,7 @@ function lagosTime(value: string | null) {
   return value ? new Date(value).toLocaleString("en-GB", { timeZone: "Africa/Lagos", dateStyle: "medium", timeStyle: "short" }) : "—"
 }
 
-export function CohortManagementClient({ role }: { role: "admin" | "teacher" }) {
+export function CohortManagementClient({ role, showAppeals = true }: { role: "admin" | "teacher"; showAppeals?: boolean }) {
   const [data, setData] = useState<Schedules | null>(null)
   const [appeals, setAppeals] = useState<Appeals>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +34,7 @@ export function CohortManagementClient({ role }: { role: "admin" | "teacher" }) 
     setLoading(true)
     setError("")
     try {
-      const [schedules, requests] = await Promise.all([getCohortSchedules(), role === "admin" ? getAccessAppeals() : Promise.resolve(null)])
+      const [schedules, requests] = await Promise.all([getCohortSchedules(), role === "admin" && showAppeals ? getAccessAppeals() : Promise.resolve(null)])
       if ("error" in schedules) throw new Error(schedules.error)
       if (requests && "error" in requests) throw new Error(requests.error)
       setData(schedules)
@@ -44,7 +44,7 @@ export function CohortManagementClient({ role }: { role: "admin" | "teacher" }) 
     } finally {
       setLoading(false)
     }
-  }, [role])
+  }, [role, showAppeals])
 
   useEffect(() => { void load() }, [load])
 
@@ -143,7 +143,7 @@ export function CohortManagementClient({ role }: { role: "admin" | "teacher" }) 
             </div>)}
           </CardContent>
         </Card>
-        {role === "admin" && <Card>
+        {role === "admin" && showAppeals && <Card>
           <CardHeader><CardTitle>Access appeals ({appeals.filter((appeal) => appeal.status === "pending").length} pending)</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">Approval grants 24 hours from approval and extends course access if needed. All times below are Lagos time.</p>

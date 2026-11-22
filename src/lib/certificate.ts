@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto"
 import Certificate from "@/models/Certificate.model"
 import CertificateTemplate from "@/models/CertificateTemplate.model"
 import Course from "@/models/Course.model"
+import { sanitizeLayout, type CertificateLayout } from "@/lib/certificate-layout"
 
 export const DEFAULT_CERTIFICATE_TITLE = "Certificate of Completion"
 
@@ -11,6 +12,8 @@ export type CertificateDesign = {
   institutionName: string
   logos: string[]
   signatures: { name: string; role: string; url: string | null }[]
+  /** Drag-and-drop design, when the course has one. */
+  layout: CertificateLayout | null
   isEnabled: boolean
 }
 
@@ -28,6 +31,7 @@ export async function getCertificateDesign(courseId: string, fallback?: { instit
       : fallback?.signatureUrl
         ? [{ name: "", role: "Authorized Signature", url: fallback.signatureUrl }]
         : [],
+    layout: sanitizeLayout(template?.layout),
     isEnabled: template?.isEnabled ?? true,
   }
 }

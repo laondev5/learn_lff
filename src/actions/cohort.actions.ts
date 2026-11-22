@@ -26,7 +26,7 @@ async function actor() {
 }
 
 function refresh() {
-  for (const url of ["/admin/cohorts", "/teacher/cohorts", "/student/appeals", "/student/applications", "/student/courses", "/courses", "/apply"]) revalidatePath(url)
+  for (const url of ["/admin/cohorts", "/admin/appeals", "/teacher/cohorts", "/student/appeals", "/student/applications", "/student/courses", "/courses", "/apply"]) revalidatePath(url)
 }
 
 export async function getCohortSchedules() {
@@ -182,10 +182,11 @@ export async function submitAccessAppeal(input: { courseId: string; moduleId: st
   }
 }
 
-export async function decideAccessAppeal(appealId: string, decision: "approved" | "rejected") {
+export async function decideAccessAppeal(appealId: string, decision: "approved" | "rejected", days = 1) {
   const user = await actor()
   if (user?.role !== "admin") return { error: "Unauthorized" }
   if (!objectId.safeParse(appealId).success || !["approved", "rejected"].includes(decision)) return { error: "Invalid appeal decision." }
+  const grantDays = Math.min(30, Math.max(1, Math.round(Number(days) || 1)))
   const appeal = await AccessAppeal.findOne({ _id: appealId, status: "pending" }).lean()
   if (!appeal) return { error: "This appeal has already been reviewed or no longer exists." }
   const now = new Date()
@@ -200,7 +201,7 @@ export async function decideAccessAppeal(appealId: string, decision: "approved" 
     if (!student || !schedule || !mod || !enrolled || now < schedule.startsAt) return { error: "The student, enrollment or cohort schedule has changed. This appeal cannot be approved." }
     const admission = await getAcceptedCohortApplication(String(appeal.student), String(appeal.course), now)
     if (!admission || !admission.schedule._id.equals(schedule._id)) return { error: "This appeal is not for the student’s current accepted cohort schedule." }
-    const accessClosesAt = new Date(now.getTime() + DAY_MS)
+    const accessClosesAt = new Date(now.getTime() + grantDays * DAY_MS)
     grant = { accessOpensAt: now, accessClosesAt, courseEndsAt: new Date(Math.max(schedule.endsAt.getTime(), accessClosesAt.getTime())) }
   }
   const result = await AccessAppeal.updateOne({ _id: appealId, status: "pending" }, { $set: { status: decision, decidedBy: user._id, decidedAt: now, ...grant } }, { runValidators: true })

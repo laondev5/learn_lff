@@ -145,3 +145,16 @@
     @apply font-heading;
   }
 }
+
+/* Certificate designer canvas: keep the artwork clean, reveal handles on hover. */
+.cert-canvas [data-cert-block] {
+  transition: outline-color 120ms ease;
+}
+.cert-canvas[data-interactive="true"] [data-cert-block]:hover {
+  outline: 1.5px dashed rgba(124, 58, 237, 0.55);
+  outline-offset: 2px;
+}
+.cert-canvas [data-cert-block][data-selected="true"] {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
