@@ -27,6 +27,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${poppins.variable} ${montserrat.variable} h-full`}
+      suppressHydrationWarning
     >
       <body className="min-h-full bg-background font-sans antialiased text-foreground">
         {children}
