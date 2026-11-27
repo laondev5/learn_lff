@@ -1,8 +1,44 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Award, BookOpen, PlayCircle, UserRound } from "lucide-react"
 import { EnrollCourseButton } from "@/components/student/EnrollCourseButton"
 import { cn } from "@/lib/utils"
+
+function CoverFallback() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-amber-200/40">
+      <BookOpen className="h-10 w-10 text-primary/50" />
+    </div>
+  )
+}
+
+function CoverImage({
+  url,
+  title,
+  sizes,
+}: {
+  url: string
+  title: string
+  sizes: string
+}) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) return <CoverFallback />
+
+  return (
+    <Image
+      src={url}
+      alt={title}
+      fill
+      sizes={sizes}
+      className="object-cover transition-transform duration-500 group-hover:scale-105"
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
 export function CourseCover({
   url, title, className, sizes = "(max-width: 768px) 100vw, 400px",
@@ -14,13 +50,7 @@ export function CourseCover({
 }) {
   return (
     <div className={cn("relative overflow-hidden bg-muted", className)}>
-      {url ? (
-        <Image src={url} alt={title} fill sizes={sizes} className="object-cover transition-transform duration-500 group-hover:scale-105" />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-amber-200/40">
-          <BookOpen className="h-10 w-10 text-primary/50" />
-        </div>
-      )}
+      {url ? <CoverImage key={url} url={url} title={title} sizes={sizes} /> : <CoverFallback />}
     </div>
   )
 }

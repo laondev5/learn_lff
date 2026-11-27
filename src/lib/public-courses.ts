@@ -4,7 +4,6 @@ import Course from "@/models/Course.model"
 import Module from "@/models/Module.model"
 import Lesson from "@/models/Lesson.model"
 import CohortSchedule from "@/models/CohortSchedule.model"
-import User from "@/models/User.model"
 import { applicationClosesAt, isApplicationOpen } from "@/lib/cohort-time"
 
 /**
@@ -17,35 +16,59 @@ import { applicationClosesAt, isApplicationOpen } from "@/lib/cohort-time"
  *  - "started" -> registration for the latest cohort has closed; wait for the next one
  *  - "none"    -> no cohort scheduled yet
  */
-export async function getPublicCourses() {
+export type PublicCourseStatus = "open" | "started" | "none"
+
+export type PublicCourseFilters = {
+  search?: string
+  status?: PublicCourseStatus | "all"
+  price?: "all" | "free" | "paid"
+  page?: number
+  pageSize?: number
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+export async function getPublicCourses(filters: PublicCourseFilters = {}) {
   await connectDB()
-  const courses = await Course.find({ isPublished: true })
+
+  const search = filters.search?.trim().slice(0, 100) ?? ""
+  const searchRegex = search ? new RegExp(escapeRegex(search), "i") : null
+  const pageSize = Math.min(24, Math.max(1, Math.trunc(filters.pageSize ?? 6)))
+  const requestedPage = Math.max(1, Math.trunc(filters.page ?? 1))
+
+  const courses = await Course.find({
+    isPublished: true,
+    ...(searchRegex ? { $or: [{ title: searchRegex }, { description: searchRegex }] } : {}),
+    ...(filters.price === "free" ? { isPaid: false } : {}),
+    ...(filters.price === "paid" ? { isPaid: true } : {}),
+  })
     .populate("teacher", "name")
     .sort({ createdAt: 1 })
     .lean()
-  const courseIds = courses.map((c) => c._id)
-  const [schedules, moduleCounts] = await Promise.all([
-    CohortSchedule.find({ course: { $in: courseIds } }).sort({ startsAt: 1 }).lean(),
-    Promise.all(courseIds.map((id) => Module.countDocuments({ course: id, isPublished: true }))),
-  ])
 
+  const courseIds = courses.map((course) => course._id)
+  const schedules = await CohortSchedule.find({ course: { $in: courseIds } })
+    .sort({ startsAt: 1 })
+    .lean()
   const now = new Date()
-  return courses.map((c, i) => {
-    const courseSchedules = schedules.filter((s) => s.course.equals(c._id))
-    const open = courseSchedules.find((s) => isApplicationOpen(s, now)) ?? null
+
+  const annotated = courses.map((course) => {
+    const courseSchedules = schedules.filter((schedule) => schedule.course.equals(course._id))
+    const open = courseSchedules.find((schedule) => isApplicationOpen(schedule, now)) ?? null
     const latest = courseSchedules[courseSchedules.length - 1] ?? null
-    const status = open ? "open" : latest ? "started" : "none"
-    const teacher = c.teacher as unknown as { name?: string } | null
+    const teacher = course.teacher as unknown as { name?: string } | null
+
     return {
-      id: c._id.toString(),
-      title: c.title,
-      description: c.description,
-      coverImageUrl: c.coverImageUrl ?? null,
-      isPaid: c.isPaid ?? false,
-      price: c.price ?? 0,
+      id: course._id.toString(),
+      title: course.title,
+      description: course.description,
+      coverImageUrl: course.coverImageUrl ?? null,
+      isPaid: course.isPaid ?? false,
+      price: course.price ?? 0,
       teacherName: teacher?.name ?? "Living Faith Foundation",
-      moduleCount: moduleCounts[i],
-      status,
+      status: open ? "open" as const : latest ? "started" as const : "none" as const,
       cohortName: open?.cohort ?? latest?.cohort ?? null,
       startDate: open?.startDate ?? latest?.startDate ?? null,
       endDate: open?.endDate ?? latest?.endDate ?? null,
@@ -57,6 +80,30 @@ export async function getPublicCourses() {
       scheduleId: open ? open._id.toString() : null,
     }
   })
+
+  const normalizedSearch = search.toLowerCase()
+  const filtered = annotated.filter((course) => {
+    const matchesStatus = !filters.status || filters.status === "all" || course.status === filters.status
+    const matchesSearch = !normalizedSearch || [course.title, course.description, course.teacherName]
+      .some((value) => value.toLowerCase().includes(normalizedSearch))
+    return matchesStatus && matchesSearch
+  })
+
+  const total = filtered.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const page = Math.min(requestedPage, totalPages)
+  const pageCourses = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const moduleCounts = await Promise.all(
+    pageCourses.map((course) => Module.countDocuments({ course: course.id, isPublished: true }))
+  )
+
+  return {
+    courses: pageCourses.map((course, index) => ({ ...course, moduleCount: moduleCounts[index] })),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  }
 }
 
 /** Public detail for one course, including the visible curriculum outline. */

@@ -27,14 +27,21 @@ export function StudentSidebar({ onClose }: StudentSidebarProps) {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,248,241,0.96))]">
+    <div className="flex h-full w-full flex-col border-r border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,248,241,0.96))] lg:w-64">
       <div className="flex h-16 items-center justify-between border-b border-primary/10 px-4">
         <Link href="/student/dashboard" className="flex items-center gap-2">
           <Image src="/logo.png" alt="LFF LMS" width={28} height={28} className="object-contain" style={{ width: 28, height: "auto" }} unoptimized />
           <span className="font-heading font-bold text-primary">LFF LMS</span>
         </Link>
         {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-9 w-9 rounded-full border border-primary/10 lg:hidden"
+            aria-label="Close navigation"
+          >
             <X className="h-4 w-4" />
           </Button>
         )}

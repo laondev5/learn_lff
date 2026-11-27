@@ -72,7 +72,7 @@ const roles = [
 const faqs = [
   {
     q: "I do not have an account yet.",
-    a: "Choose Get started to create your account and apply for an upcoming cohort. Your pastor will receive an accountability invitation; admission remains pending until they accept.",
+    a: "Choose Apply for a cohort to create your account and join an upcoming cohort. Your pastor will receive an accountability invitation; admission remains pending until they accept.",
   },
   {
     q: "I cannot get in.",
@@ -150,7 +150,7 @@ export default function LandingPage() {
 
       <main>
         <section className="border-b border-rule">
-          <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 py-16 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:py-24">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 lg:grid-cols-[0.9fr_1.25fr] lg:px-8 lg:py-24">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">
                 Teaching the Foundation, lesson by lesson
@@ -168,7 +168,7 @@ export default function LandingPage() {
                   href="/apply"
                   className="rounded-sm bg-brand px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
                 >
-                  Get started — apply for a cohort
+                  Apply for a cohort
                 </Link>
                 <Link
                   href="/courses"
@@ -176,12 +176,6 @@ export default function LandingPage() {
                 >
                   Browse courses
                 </Link>
-                <a
-                  href="#includes"
-                  className="rounded-sm border border-gray-300 px-7 py-3.5 text-sm font-semibold text-ink transition-colors hover:border-brand hover:text-brand"
-                >
-                  What a course includes
-                </a>
               </div>
               <p className="mt-8 max-w-xl border-l-2 border-gold pl-4 text-sm leading-relaxed text-gray-500">
                 Accounts are created for members by the church administration. If you have studied
@@ -189,16 +183,16 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <figure>
-              <div className="overflow-hidden rounded-md border border-rule bg-white shadow-[0_24px_50px_-30px_rgba(23,32,27,0.55)]">
-                <div className="relative aspect-[16/7.2] w-full">
+            <figure className="min-w-0">
+              <div className="overflow-hidden rounded-md border border-rule bg-paper shadow-[0_24px_50px_-30px_rgba(23,32,27,0.55)]">
+                <div className="relative aspect-[16/9] w-full">
                   <Image
                     src="/image.png"
                     alt="The student dashboard, showing enrolled courses, certificates and upcoming live classes."
                     fill
                     priority
-                    sizes="(min-width: 1024px) 46vw, 100vw"
-                    className="object-cover object-top"
+                    sizes="(min-width: 1024px) 55vw, 100vw"
+                    className="object-contain"
                   />
                 </div>
               </div>

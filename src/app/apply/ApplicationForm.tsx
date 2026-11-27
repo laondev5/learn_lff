@@ -60,32 +60,113 @@ export function ApplicationForm({ schedules, preselectSchedule }: { schedules: S
     <p className="text-muted-foreground">Registration stays open until one week after a cohort starts. That window has now closed for every available course. Please wait for the next cohort — applications reopen as soon as a new intake is scheduled. You can <Link href="/courses" className="text-primary underline">browse the courses</Link> in the meantime, or contact your assembly.</p>
   </section>
 
-  return <form onSubmit={submit} className="space-y-7" aria-busy={busy}>
-    <fieldset disabled={busy} className="space-y-5 disabled:opacity-70">
-      <legend className="mb-4 text-lg font-semibold">Your account</legend>
-      <div className="space-y-2"><Label htmlFor="name">Full name</Label><Input id="name" name="name" autoComplete="name" required minLength={2} maxLength={150} /></div>
-      <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" name="email" type="email" autoComplete="email" required maxLength={254} /><p className="text-xs text-muted-foreground">Your admission link and course notices are sent to this address.</p></div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="state">State</Label><Input id="state" name="state" required minLength={2} maxLength={100} autoComplete="address-level1" /></div>
-        <div className="space-y-2"><Label htmlFor="district">Church district</Label><Input id="district" name="district" required minLength={2} maxLength={150} placeholder="e.g. Lagos District" /></div>
-        <div className="space-y-2 sm:col-span-2"><Label htmlFor="church">Church branch</Label><Input id="church" name="church" required minLength={2} maxLength={150} placeholder="The name your branch is known by" /></div>
-      </div>
-      <div className="space-y-2"><Label htmlFor="scheduleId">Course and cohort</Label><select id="scheduleId" name="scheduleId" required value={scheduleId} onChange={event => setScheduleId(event.target.value)} className="w-full rounded-md border bg-background px-3 py-3 text-sm focus-visible:outline-2 focus-visible:outline-primary"><option value="" disabled>Select a course and cohort</option>{schedules.map(s => <option key={s.id} value={s.id}>{s.courseTitle} · {s.cohort} · starts {s.startDate} · apply by {lagosDate(s.registrationClosesAt)}</option>)}</select><p className="text-xs text-muted-foreground">Applications close one week after the cohort starts. All dates follow Lagos time.</p></div>
-      {selected && <div className="rounded-md border bg-muted/40 p-4 text-sm">
-        {payable
-          ? <><p className="font-semibold">Course fee: {money(selected.price)}</p><p className="mt-1 text-muted-foreground">After you submit this form you will be taken to a secure Paystack checkout to pay for {selected.courseTitle}. Your place is confirmed when the payment succeeds.</p></>
-          : <p className="text-muted-foreground">This cohort course is free — no payment is needed.</p>}
-      </div>}
-    </fieldset>
-    <fieldset disabled={busy} className="space-y-5 border-t pt-6 disabled:opacity-70">
-      <legend className="text-lg font-semibold">Your pastor and accountability partner</legend>
-      <p className="text-sm leading-relaxed text-muted-foreground">We will email your pastor to ask them to accept this role. If they accept, they will receive notifications when you miss a module deadline. If they decline, your application will be rejected.</p>
-      <div className="space-y-2"><Label htmlFor="partnerName">Pastor’s full name</Label><Input id="partnerName" name="partnerName" required minLength={2} maxLength={150} /></div>
-      <div className="grid gap-5 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="partnerEmail">Pastor’s email address</Label><Input id="partnerEmail" name="partnerEmail" type="email" required maxLength={254} /></div><div className="space-y-2"><Label htmlFor="partnerPhone">Pastor’s phone number</Label><Input id="partnerPhone" name="partnerPhone" type="tel" required minLength={7} maxLength={40} placeholder="Include country code" /></div></div>
-      <label className="flex items-start gap-3 text-sm leading-relaxed"><input type="checkbox" name="partnerInformed" required className="mt-1 h-4 w-4 shrink-0" /><span>I have informed my pastor and have his permission to share his information and use him as my accountability partner. I understand he will be notified, and my admission remains pending until he accepts.</span></label>
-    </fieldset>
-    {error && <div role="alert" className="space-y-2 rounded-md border border-destructive/30 p-4 text-sm"><p className="text-destructive">{error}</p><Link href="/student/applications" className="underline">Sign in to check Applications</Link></div>}
-    <p className="text-sm text-muted-foreground">You are not asked for a password now. If your pastor accepts, we will email you a one-time link to set one.</p>
-    <Button type="submit" disabled={busy} size="lg" className="w-full sm:w-auto">{busy ? (payable ? "Submitting and opening payment…" : "Submitting application…") : payable ? `Submit application and pay ${money(selected.price)}` : "Submit application"}</Button>
-  </form>
+  return (
+    <form onSubmit={submit} className="space-y-8" aria-busy={busy}>
+      <fieldset disabled={busy} className="space-y-5 disabled:opacity-70">
+        <legend className="mb-4 text-lg font-semibold">Your account</legend>
+        <div className="space-y-2">
+          <Label htmlFor="name">Full name</Label>
+          <Input id="name" name="name" autoComplete="name" required minLength={2} maxLength={150} className="h-12 rounded-xl text-base md:text-base" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Email address</Label>
+          <Input id="email" name="email" type="email" autoComplete="email" required maxLength={254} className="h-12 rounded-xl text-base md:text-base" />
+          <p className="text-xs text-muted-foreground">Your admission link and course notices are sent to this address.</p>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="state">State</Label>
+            <Input id="state" name="state" required minLength={2} maxLength={100} autoComplete="address-level1" className="h-12 rounded-xl text-base md:text-base" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="district">Church district</Label>
+            <Input id="district" name="district" required minLength={2} maxLength={150} placeholder="e.g. Lagos District" className="h-12 rounded-xl text-base md:text-base" />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="church">Church branch</Label>
+            <Input id="church" name="church" required minLength={2} maxLength={150} placeholder="The name your branch is known by" className="h-12 rounded-xl text-base md:text-base" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="scheduleId">Course and cohort</Label>
+          <select
+            id="scheduleId"
+            name="scheduleId"
+            required
+            value={scheduleId}
+            onChange={event => setScheduleId(event.target.value)}
+            className="h-12 w-full rounded-xl border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-primary md:text-base"
+          >
+            <option value="" disabled>Select a course and cohort</option>
+            {schedules.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.courseTitle} · {s.cohort} · starts {s.startDate} · apply by {lagosDate(s.registrationClosesAt)}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">Applications close one week after the cohort starts. All dates follow Lagos time.</p>
+        </div>
+        {selected && (
+          <div className="rounded-xl border bg-muted/40 p-4 text-sm">
+            {payable ? (
+              <>
+                <p className="font-semibold">Course fee: {money(selected.price)}</p>
+                <p className="mt-1 text-muted-foreground">
+                  After you submit this form you will be taken to a secure Paystack checkout to pay for {selected.courseTitle}. Your place is confirmed when the payment succeeds.
+                </p>
+              </>
+            ) : (
+              <p className="text-muted-foreground">This cohort course is free — no payment is needed.</p>
+            )}
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset disabled={busy} className="space-y-5 border-t border-border pt-7 disabled:opacity-70">
+        <legend className="text-lg font-semibold">Your pastor and accountability partner</legend>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          We will email your pastor to ask them to accept this role. If they accept, they will receive notifications when you miss a module deadline. If they decline, your application will be rejected.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="partnerName">Pastor’s full name</Label>
+          <Input id="partnerName" name="partnerName" required minLength={2} maxLength={150} className="h-12 rounded-xl text-base md:text-base" />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="partnerEmail">Pastor’s email address</Label>
+            <Input id="partnerEmail" name="partnerEmail" type="email" required maxLength={254} className="h-12 rounded-xl text-base md:text-base" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="partnerPhone">Pastor’s phone number</Label>
+            <Input id="partnerPhone" name="partnerPhone" type="tel" required minLength={7} maxLength={40} placeholder="Include country code" className="h-12 rounded-xl text-base md:text-base" />
+          </div>
+        </div>
+        <label className="flex items-start gap-3 text-sm leading-relaxed">
+          <input type="checkbox" name="partnerInformed" required className="mt-1 h-4 w-4 shrink-0 accent-primary" />
+          <span>I have informed my pastor and have his permission to share his information and use him as my accountability partner. I understand he will be notified, and my admission remains pending until he accepts.</span>
+        </label>
+      </fieldset>
+
+      {error && (
+        <div role="alert" className="space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p className="text-destructive">{error}</p>
+          <Link href="/student/applications" className="underline">Sign in to check Applications</Link>
+        </div>
+      )}
+      <p className="text-sm text-muted-foreground">You are not asked for a password now. If your pastor accepts, we will email you a one-time link to set one.</p>
+      <Button
+        type="submit"
+        disabled={busy}
+        className="h-13 w-full rounded-xl px-6 text-base font-semibold shadow-sm sm:w-auto"
+      >
+        {busy
+          ? payable
+            ? "Submitting and opening payment…"
+            : "Submitting application…"
+          : payable
+            ? `Submit application and pay ${money(selected.price)}`
+            : "Submit application"}
+      </Button>
+    </form>
+  )
 }

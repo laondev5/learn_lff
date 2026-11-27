@@ -31,7 +31,7 @@ export function StudentLayoutClient({ user, profileComplete, children }: Student
       </div>
 
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
+        <SheetContent side="left" className="w-full p-0 data-[side=left]:w-full data-[side=left]:sm:max-w-none" showCloseButton={false}>
           <StudentSidebar onClose={() => setSidebarOpen(false)} />
         </SheetContent>
       </Sheet>
