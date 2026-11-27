@@ -49,7 +49,7 @@ export async function PATCH(
   try {
     const { courseId } = await context.params
     const session = await auth()
-    if (!session?.user || session.user.role !== "teacher") {
+    if (!session?.user || (session.user.role !== "teacher" && session.user.role !== "admin")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -62,8 +62,10 @@ export async function PATCH(
 
     await connectDB()
 
-    // Ensure teacher owns course
-    const course = await Course.findOne({ _id: courseId, teacher: session.user.id })
+    // Admins may adjust any course; teachers only their own.
+    const course = session.user.role === "admin"
+      ? await Course.findById(courseId)
+      : await Course.findOne({ _id: courseId, teacher: session.user.id })
     if (!course) {
       return NextResponse.json({ error: "Course not found or unauthorized" }, { status: 404 })
     }

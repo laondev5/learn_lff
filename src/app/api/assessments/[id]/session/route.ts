@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { connectDB } from "@/lib/mongoose"
 import Assessment from "@/models/Assessment.model"
+import CourseSettings from "@/models/CourseSettings.model"
 import ProctoringSession, { IProctoringSession } from "@/models/ProctoringSession.model"
 import Submission from "@/models/Submission.model"
 import StudentProgress from "@/models/StudentProgress.model"
 import { isPastExamDeadline } from "@/lib/exam-window"
-import { Types } from "mongoose"
 
 /**
  * POST /api/assessments/[id]/session
@@ -39,6 +39,11 @@ export async function POST(
       return NextResponse.json({ error: "Assessment is not available yet" }, { status: 403 })
     }
 
+    // The warning budget is configurable per course (admins and teachers can
+    // change it); fall back to 3 when no settings row exists yet.
+    const courseSettings = await CourseSettings.findOne({ course: assessment.course }).lean()
+    const maxWarnings = courseSettings?.maxWarnings ?? 3
+
     const access = await getAssessmentAccess(studentId, assessment)
     if (!access.allowed) return NextResponse.json({ error: access.reason }, { status: 403 })
 
@@ -66,6 +71,7 @@ export async function POST(
           type: q.type,
           options: q.options,
           points: q.points,
+          section: q.section,
         }))
 
         return NextResponse.json({
@@ -107,7 +113,7 @@ export async function POST(
       startTime: new Date(),
       endTime: undefined,
       warnings: 0,
-      maxWarnings: 3,
+      maxWarnings,
       violationLog: [],
       microphoneActive: false,
       fullscreenActive: false,
@@ -137,6 +143,7 @@ export async function POST(
       type: q.type,
       options: q.options,
       points: q.points,
+      section: q.section,
     }))
 
     return NextResponse.json({
@@ -217,6 +224,8 @@ export async function GET(
       status: "active",
     })
 
+    const courseSettings = await CourseSettings.findOne({ course: assessment.course }).lean()
+
     return NextResponse.json({
       hasActiveSession: !!proctoringSession,
       session: proctoringSession || null,
@@ -226,6 +235,7 @@ export async function GET(
         durationMinutes: assessment.durationMinutes,
         totalMarks: assessment.totalMarks,
         proctoringEnabled: assessment.proctoringEnabled,
+        maxWarnings: courseSettings?.maxWarnings ?? 3,
         maxAttempts: assessment.maxAttempts,
         attemptsLeft: assessment.maxAttempts - submissionCount,
       }

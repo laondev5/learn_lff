@@ -15,7 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import { Award, BookOpen, Loader2, Pencil, Plus } from "lucide-react"
+import { Award, BookOpen, Loader2, Pencil, Plus, ShieldCheck } from "lucide-react"
 import { createAdminCourse, setAdminCoursePublished, updateAdminCourse, type getAdminCourses } from "@/actions/admin-course.actions"
 
 type Data = Extract<Awaited<ReturnType<typeof getAdminCourses>>, { courses: unknown }>
@@ -33,6 +33,64 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
   const [draft, setDraft] = useState<Draft>(emptyDraft)
   const [busy, setBusy] = useState(false)
   const [toggling, setToggling] = useState<string | null>(null)
+
+  // Proctoring settings
+  const [proctorCourse, setProctorCourse] = useState<AdminCourse | null>(null)
+  const [proctorBusy, setProctorBusy] = useState(false)
+  const [proctorEnabled, setProctorEnabled] = useState(false)
+  const [proctorMax, setProctorMax] = useState("3")
+  // Preserved so saving proctoring does not overwrite the course's grade weights.
+  const [proctorCa, setProctorCa] = useState(40)
+  const [proctorExam, setProctorExam] = useState(60)
+
+  async function startProctor(course: AdminCourse) {
+    setProctorCourse(course)
+    setProctorEnabled(false)
+    setProctorMax("3")
+    setProctorCa(40)
+    setProctorExam(60)
+    try {
+      const res = await fetch(`/api/courses/${course.id}/settings`)
+      const data = await res.json()
+      const settings = data.settings ?? data
+      setProctorEnabled(Boolean(settings.proctoringEnabled))
+      setProctorMax(String(settings.maxWarnings ?? 3))
+      setProctorCa(Number(settings.caWeight ?? 40))
+      setProctorExam(Number(settings.examWeight ?? 60))
+    } catch {
+      toast.error("Could not load proctoring settings.")
+    }
+  }
+
+  async function saveProctor() {
+    if (!proctorCourse || proctorBusy) return
+    const maxWarnings = Math.min(10, Math.max(1, Number(proctorMax) || 3))
+    setProctorBusy(true)
+    try {
+      const res = await fetch(`/api/courses/${proctorCourse.id}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caWeight: proctorCa,
+          examWeight: proctorExam,
+          proctoringEnabled: proctorEnabled,
+          maxWarnings,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Could not save proctoring settings.")
+        return
+      }
+      toast.success("Proctoring settings saved.")
+      setProctorCourse(null)
+      router.refresh()
+    } catch {
+      toast.error("Could not save proctoring settings.")
+    } finally {
+      setProctorBusy(false)
+    }
+  }
 
   function startCreate() {
     setEditing(null)
@@ -156,6 +214,9 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/admin/certificates?course=${course.id}`)}>
                           <Award className="mr-1 h-3 w-3" /> Certificate
                         </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => void startProctor(course)}>
+                          <ShieldCheck className="mr-1 h-3 w-3" /> Proctoring
+                        </Button>
                         <Button
                           variant={course.isPublished ? "secondary" : "default"}
                           size="sm"
@@ -230,6 +291,51 @@ export function AdminCoursesClient({ courses, teachers }: { courses: AdminCourse
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!proctorCourse} onOpenChange={(value) => { if (!value && !proctorBusy) setProctorCourse(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Proctoring — {proctorCourse?.title}</DialogTitle>
+            <DialogDescription>Control how strict the final exam is for this course.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <label className="flex items-start gap-3 rounded-lg border p-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-primary"
+                checked={proctorEnabled}
+                onChange={(event) => setProctorEnabled(event.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-medium">Require proctoring</span>
+                <span className="block text-xs text-muted-foreground">Camera, microphone, fullscreen and single-display checks.</span>
+              </span>
+            </label>
+
+            <div className="space-y-2">
+              <Label htmlFor="max-warnings">Warnings before auto-submit</Label>
+              <Input
+                id="max-warnings"
+                type="number"
+                min={1}
+                max={10}
+                value={proctorMax}
+                onChange={(event) => setProctorMax(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                1–10. The student is warned each time and the exam submits automatically at the limit. Default is 3.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setProctorCourse(null)} disabled={proctorBusy}>Cancel</Button>
+              <Button className="flex-1" onClick={() => void saveProctor()} disabled={proctorBusy}>
+                {proctorBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

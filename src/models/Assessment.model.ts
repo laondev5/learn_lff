@@ -10,6 +10,17 @@ export interface IAssessmentQuestion {
   options?: string[]
   correctAnswer: string
   points: number
+  /**
+   * Optional key terms for `short_answer` questions. When present, the grader
+   * awards partial credit for the share of terms the student's answer covers,
+   * instead of demanding an exact match with the model answer.
+   */
+  keywords?: string[]
+  /**
+   * Optional delivery grouping. Questions sharing a `section` are shown together
+   * as one step of the exam wizard, in order of first appearance.
+   */
+  section?: string
 }
 
 export interface IAssessment extends Document {
@@ -37,6 +48,12 @@ export type ViolationType =
   | "microphone_inactive"
   | "copy_paste"
   | "right_click"
+  | "noise_detected"
+  | "media_lost"
+  | "multi_screen"
+  | "movement_detected"
+  | "face_not_visible"
+  | "multiple_faces"
 
 const AssessmentQuestionSchema = new Schema<IAssessmentQuestion>(
   {
@@ -49,6 +66,8 @@ const AssessmentQuestionSchema = new Schema<IAssessmentQuestion>(
     options: [{ type: String }],
     correctAnswer: { type: String, required: true },
     points: { type: Number, required: true, default: 1, min: 0 },
+    keywords: [{ type: String }],
+    section: { type: String },
   },
   { _id: true }
 )
@@ -78,6 +97,12 @@ const AssessmentSchema = new Schema<IAssessment>(
         "microphone_inactive",
         "copy_paste",
         "right_click",
+        "noise_detected",
+        "media_lost",
+        "multi_screen",
+        "movement_detected",
+        "face_not_visible",
+        "multiple_faces",
       ] as ViolationType[],
       default: ["tab_switch", "fullscreen_exit"],
     },

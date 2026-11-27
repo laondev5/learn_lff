@@ -1,0 +1,643 @@
+{
+  "title": "Family Class Final Exam — Batch B",
+  "courseId": "6ae7aefcb85ea3c5d860b351",
+  "durationMinutes": 90,
+  "passingScore": 70,
+  "maxAttempts": 2,
+  "source": "FAMILY CLASS QUESTIONS BATCH B.docx",
+  "notes": [
+    "Sat only after every module is complete (enforced by src/lib/assessment-access.ts).",
+    "Objective answers verified against the lesson transcripts via scripts/family-module-answers.json.",
+    "Paper 2 (Responsibility) is not covered by the 23 archived transcripts; its answers were derived from the option sets and standard doctrine and should be reviewed by the course lead.",
+    "Essay questions are auto-marked by keyword coverage. Edit `keywords` to tune strictness."
+  ],
+  "papers": [
+    {
+      "paper": "Paper 1 — Foundations of the Faith",
+      "section": "Section A",
+      "step": 1,
+      "stepLabel": "Part 1 · Multiple Choice",
+      "instruction": "Fill in the gaps.",
+      "questions": [
+        {
+          "text": "A foundation is important if a _______ intends that his house should last for many years.",
+          "type": "mcq",
+          "options": [
+            "steward",
+            "builder",
+            "house"
+          ],
+          "correctAnswer": "Builder",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "There are basic _________ of the faith about which a believer cannot afford to be in doubt.",
+          "type": "mcq",
+          "options": [
+            "tenets",
+            "levels",
+            "doctrines"
+          ],
+          "correctAnswer": "Tenets",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "_______ is one of the main themes of the scriptures.",
+          "type": "mcq",
+          "options": [
+            "Faith",
+            "Christ",
+            "Repentance"
+          ],
+          "correctAnswer": "Repentance",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Repentance is a major ______ of faith, a chief _______",
+          "type": "mcq",
+          "options": [
+            "doctrine",
+            "pillar",
+            "teaching"
+          ],
+          "correctAnswer": "Pillar",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "The apostles lifted high the ________ of repentance, making it the condition for being acceptance to God.",
+          "type": "mcq",
+          "options": [
+            "banner",
+            "doctrines",
+            "foundation"
+          ],
+          "correctAnswer": "Banner",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "_______ is a foundation doctrine, without it, the faith rests on a sandy, porous ground.",
+          "type": "mcq",
+          "options": [
+            "Faith",
+            "Repentance",
+            "Salvation"
+          ],
+          "correctAnswer": "Repentance",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "When true repentance takes place, the stage is set for a ________, rewarding walk with God.",
+          "type": "mcq",
+          "options": [
+            "steward",
+            "faithful",
+            "fruitful"
+          ],
+          "correctAnswer": "Fruitful",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Repentance is not _______",
+          "type": "mcq",
+          "options": [
+            "worldly sorrow",
+            "remorse",
+            "all of the above"
+          ],
+          "correctAnswer": "Remorse",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Repentance is not _______ that works death.",
+          "type": "mcq",
+          "options": [
+            "worldly sorrow",
+            "godly sorrow",
+            "remorse"
+          ],
+          "correctAnswer": "Worldly sorrow",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "__________ is not mere fear of physical punishment or merely to avoid shame.",
+          "type": "mcq",
+          "options": [
+            "Repentance",
+            "Atonement",
+            "Justification"
+          ],
+          "correctAnswer": "Repentance",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "To 'repent' is a ________ fold action.",
+          "type": "mcq",
+          "options": [
+            "two",
+            "three",
+            "four"
+          ],
+          "correctAnswer": "Three",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "_________ is a key condition for blessing, for grace and for diverse provisions we receive from God.",
+          "type": "mcq",
+          "options": [
+            "Faith",
+            "Faithful",
+            "Repentance"
+          ],
+          "correctAnswer": "Repentance",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Behavior, attitude and lifestyle that conflict with God's word and attract the judgment of God are _______ works.",
+          "type": "mcq",
+          "options": [
+            "dead",
+            "flesh",
+            "sinful"
+          ],
+          "correctAnswer": "Dead",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Private \"_____\" programs that bypasses and undermines the cross.",
+          "type": "mcq",
+          "options": [
+            "repentance",
+            "salvation",
+            "glorification"
+          ],
+          "correctAnswer": "Salvation",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "The doctrine of faith towards God _______ around a belief or confidence in His will for one's life.",
+          "type": "mcq",
+          "options": [
+            "revolves",
+            "center",
+            "central"
+          ],
+          "correctAnswer": "Revolves",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "The central idea conveyed by the word \"faith\" is _______, which means firmness and determination in one's resolution to follow God and His word.",
+          "type": "mcq",
+          "options": [
+            "word-based",
+            "steadfastness",
+            "firmness"
+          ],
+          "correctAnswer": "Steadfastness",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "According to Heb. 11:1, faith is the confident assurance that what you desire will manifest even when there is no ______ ground to rest your expectation on.",
+          "type": "mcq",
+          "options": [
+            "expectation",
+            "confident",
+            "visible"
+          ],
+          "correctAnswer": "Visible",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "______ is holding on to the invincible God until blessings are released or the desires met.",
+          "type": "mcq",
+          "options": [
+            "Repent",
+            "Faith",
+            "Wisdom"
+          ],
+          "correctAnswer": "Faith",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "Faith is not common sense but must be ______ based.",
+          "type": "mcq",
+          "options": [
+            "word",
+            "faith",
+            "wisdom"
+          ],
+          "correctAnswer": "Word",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        },
+        {
+          "text": "_____ people often hold their breath in suspense at the declaration of the word of faith and are often apprehensive of what may happen should the word so declared fails.",
+          "type": "mcq",
+          "options": [
+            "Faithless",
+            "Faith",
+            "Carnal"
+          ],
+          "correctAnswer": "Faithless",
+          "points": 1,
+          "answerSource": "user-provided answer key (Family Class final exam, Part 1 Section A)"
+        }
+      ]
+    },
+    {
+      "paper": "Paper 1 — Foundations of the Faith",
+      "section": "Section B",
+      "step": 2,
+      "stepLabel": "Part 1 · Essay",
+      "instruction": "Attempt three questions, question one is compulsory.",
+      "questions": [
+        {
+          "text": "Explain 'resurrection' and the stages.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "resurrection",
+            "christ",
+            "firstfruit",
+            "righteous",
+            "wicked",
+            "judgement"
+          ],
+          "correctAnswer": "Resurrection is the raising of the dead to life by the power of God. Its stages are: first, the resurrection of Jesus Christ as the firstfruits; second, the resurrection of the righteous dead at His coming; third, the resurrection of the wicked unto judgement."
+        },
+        {
+          "text": "There are no 'superior' or 'insignificant' areas of service. Jesus measured greatness in terms of service, not 'status'. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "service",
+            "greatness",
+            "status",
+            "equal",
+            "kingdom"
+          ],
+          "correctAnswer": "Jesus measured greatness by service rather than status. Every area of service carries equal value before God; no role is superior or insignificant. Greatness in the kingdom is measured by faithful service, not by position, title or recognition."
+        },
+        {
+          "text": "A Christian's 'servant's heart' is one major thing that reveals his/her Christian maturity. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "servant",
+            "maturity",
+            "humility",
+            "others",
+            "christ"
+          ],
+          "correctAnswer": "A servant's heart reveals maturity because it puts others before self, mirrors Christ who came to serve and not to be served, and produces humility, availability and a willingness to serve without seeking recognition."
+        },
+        {
+          "text": "If you don't use your gifts, abilities, endowments, etc. to serve, others get 'cheated'; if others don't use theirs, you get 'cheated'. Everyone is expected to play his part. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "gifts",
+            "body",
+            "part",
+            "others",
+            "common good"
+          ],
+          "correctAnswer": "Gifts are given for the common good of the body of Christ. When one member fails to serve, others are deprived of what God intended for them through that member; when every member serves, the whole body benefits. Each believer is expected to play his or her part."
+        },
+        {
+          "text": "God is not particular about the 'magnitude' of our responsibility but the degree of faithfulness. It is our 'fruitfulness' (output) that counts, not our title, position or 'office'. The way we sow (even in stewardship) is the same way we will reap. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "faithfulness",
+            "fruitfulness",
+            "title",
+            "sow",
+            "reap"
+          ],
+          "correctAnswer": "God assesses faithfulness rather than the size of the responsibility, and fruitfulness rather than title, position or office. Because we reap what we sow, the manner of our sowing in stewardship determines the reward we receive."
+        }
+      ]
+    },
+    {
+      "paper": "Paper 2 — Responsibility",
+      "section": "Section A",
+      "step": 4,
+      "stepLabel": "Part 2 · Essay",
+      "instruction": "Attempt three questions, question five is compulsory.",
+      "questions": [
+        {
+          "text": "You can retire from your career, but you cannot 'retire' from serving God! Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "retire",
+            "service",
+            "lifelong",
+            "believer",
+            "god"
+          ],
+          "correctAnswer": "Career service ends at retirement, but Christian service is lifelong. A believer remains in service to God until death; there is no retirement from the Lord's work, only a change of assignment."
+        },
+        {
+          "text": "Discipleship involves learning of Christ with the purpose of obeying Him totally. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "learning",
+            "obedience",
+            "christ",
+            "continuous",
+            "commitment"
+          ],
+          "correctAnswer": "Discipleship is learning from Christ as an apprentice with the aim of total obedience. It is continuous, demands commitment and concentration, and is proven by obedience rather than by knowledge alone."
+        },
+        {
+          "text": "Every Christian is not called to be a pastor, but every Christian is called to Christian service. God wants to express his power, love and grace through us. Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "pastor",
+            "service",
+            "called",
+            "power",
+            "love"
+          ],
+          "correctAnswer": "Not every believer is called to pastoral office, but every believer is called to service. Service is not optional; God desires to express His power, love and grace through the service of every Christian."
+        },
+        {
+          "text": "'I know of no more encouraging fact than the unquestionable ability of man to elevate his life by conscious endeavor.' Explain.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "endeavour",
+            "conscious",
+            "responsibility",
+            "proactive",
+            "growth"
+          ],
+          "correctAnswer": "The statement stresses personal responsibility and deliberate effort. A person can lift his life by conscious endeavour rather than by passively reacting to circumstances, which is the difference between a reactive and a proactive life."
+        },
+        {
+          "text": "Explain the terms: 'Hired workers', 'Servant workers' and 'Slave workers'.",
+          "type": "short_answer",
+          "points": 6,
+          "keywords": [
+            "hired",
+            "servant",
+            "slave",
+            "reward",
+            "wholly"
+          ],
+          "correctAnswer": "Hired workers serve for reward and may abandon the work when it becomes inconvenient; servant workers serve dutifully but within limits; slave workers belong wholly to the master and serve without reserve, which is the highest level of service."
+        }
+      ]
+    },
+    {
+      "paper": "Paper 2 — Responsibility",
+      "section": "Section B",
+      "step": 3,
+      "stepLabel": "Part 2 · Multiple Choice",
+      "instruction": "Fill in the gaps.",
+      "questions": [
+        {
+          "text": "The way you 'sow' in _______ is the same way you'll 'reap', and God will always and definitely reward faithfulness in service.",
+          "type": "mcq",
+          "options": [
+            "Christianity",
+            "stewardship",
+            "vineyard"
+          ],
+          "correctAnswer": "stewardship",
+          "points": 1
+        },
+        {
+          "text": "______ is an \"official investiture\" or 'consecration' into an office.",
+          "type": "mcq",
+          "options": [
+            "Title",
+            "Pastor",
+            "Ordination"
+          ],
+          "correctAnswer": "Ordination",
+          "points": 1
+        },
+        {
+          "text": "Learning _____ are happy people and good workers because they can see their aspirations being actualized.",
+          "type": "mcq",
+          "options": [
+            "people",
+            "individual",
+            "Christian"
+          ],
+          "correctAnswer": "people",
+          "points": 1
+        },
+        {
+          "text": "Learning and ______ keeps men on fire for God.",
+          "type": "mcq",
+          "options": [
+            "studying",
+            "responsibility",
+            "meditation"
+          ],
+          "correctAnswer": "studying",
+          "points": 1
+        },
+        {
+          "text": "Learning involves _____ which is and needs to be continuous.",
+          "type": "mcq",
+          "options": [
+            "commitment",
+            "concentration",
+            "change"
+          ],
+          "correctAnswer": "concentration",
+          "points": 1
+        },
+        {
+          "text": "The _____ of learning depends on the facilitator and the learner.",
+          "type": "mcq",
+          "options": [
+            "degree",
+            "decree",
+            "commitment"
+          ],
+          "correctAnswer": "degree",
+          "points": 1
+        },
+        {
+          "text": "Service in Christ is not ______ for a Christian. In God's army there are no 'volunteers'; every Christian is automatically drafted into service.",
+          "type": "mcq",
+          "options": [
+            "compulsory",
+            "optional",
+            "none of the above"
+          ],
+          "correctAnswer": "optional",
+          "points": 1
+        },
+        {
+          "text": "_______ Christians respond to circumstances but ______ Christians, though still influenced by external stimuli, only respond based on values built on sound biblical principles.",
+          "type": "mcq",
+          "options": [
+            "Reactive and focus",
+            "Proactive and focus",
+            "Reactive and proactive"
+          ],
+          "correctAnswer": "Reactive and proactive",
+          "points": 1
+        },
+        {
+          "text": "No one can hurt you without your consent, said by ______.",
+          "type": "mcq",
+          "options": [
+            "Eleanor Roosevelt",
+            "Gandhi",
+            "Henry David Thoreau"
+          ],
+          "correctAnswer": "Eleanor Roosevelt",
+          "points": 1
+        },
+        {
+          "text": "________ said \"They cannot take away our self-respect if we do not give it to them\".",
+          "type": "mcq",
+          "options": [
+            "Eleanor Roosevelt",
+            "Gandhi",
+            "Henry David Thoreau"
+          ],
+          "correctAnswer": "Gandhi",
+          "points": 1
+        },
+        {
+          "text": "Christian ______ refers to the way/manner of behavior of a Christian.",
+          "type": "mcq",
+          "options": [
+            "attitude",
+            "behavior",
+            "conduct"
+          ],
+          "correctAnswer": "conduct",
+          "points": 1
+        },
+        {
+          "text": "_______ is a process of becoming 'larger' and more mature through natural development.",
+          "type": "mcq",
+          "options": [
+            "Progress",
+            "Process",
+            "Growth"
+          ],
+          "correctAnswer": "Growth",
+          "points": 1
+        },
+        {
+          "text": "Spiritual _____ precedes spiritual growth.",
+          "type": "mcq",
+          "options": [
+            "birth",
+            "atmosphere",
+            "dominion"
+          ],
+          "correctAnswer": "birth",
+          "points": 1
+        },
+        {
+          "text": "Spiritual growth is a ______ responsibility.",
+          "type": "mcq",
+          "options": [
+            "individual",
+            "personal",
+            "corporate"
+          ],
+          "correctAnswer": "personal",
+          "points": 1
+        },
+        {
+          "text": "Spiritual growth is '______' and may not be '_______'.",
+          "type": "mcq",
+          "options": [
+            "Study and balanced",
+            "calculated and balanced",
+            "measurable and balanced"
+          ],
+          "correctAnswer": "measurable and balanced",
+          "points": 1
+        },
+        {
+          "text": "The 'Grace' that determines the Christian's 'status' is his/her _____.",
+          "type": "mcq",
+          "options": [
+            "knowledge",
+            "strength",
+            "revelation"
+          ],
+          "correctAnswer": "revelation",
+          "points": 1
+        },
+        {
+          "text": "______ is about 'Servant-hood'.",
+          "type": "mcq",
+          "options": [
+            "Apprenticeship",
+            "Protégé",
+            "Leader"
+          ],
+          "correctAnswer": "Apprenticeship",
+          "points": 1
+        },
+        {
+          "text": "God is not particular about the 'magnitude' or 'size' of your responsibility but the degree of '______'.",
+          "type": "mcq",
+          "options": [
+            "grace",
+            "fruitfulness",
+            "faithfulness"
+          ],
+          "correctAnswer": "faithfulness",
+          "points": 1
+        },
+        {
+          "text": "It is 'fruitfulness' (output) that counts, not your 'title', 'position' or 'office' - even though the title, position or office rightly serves as a '______' or '______' for greater impact in service.",
+          "type": "mcq",
+          "options": [
+            "Stage and platform",
+            "stage and promotion",
+            "platform and grace"
+          ],
+          "correctAnswer": "Stage and platform",
+          "points": 1
+        },
+        {
+          "text": "Every Christian is not called to be pastor, but every Christian is called to Christian _____.",
+          "type": "mcq",
+          "options": [
+            "responsibility",
+            "service",
+            "workforce"
+          ],
+          "correctAnswer": "service",
+          "points": 1
+        }
+      ]
+    }
+  ]
+}

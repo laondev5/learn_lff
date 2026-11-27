@@ -39,5 +39,7 @@ export function getAppUrl() {
     return !isLocalhostUrl(value)
   })
 
-  return preferredUrl ?? "http://localhost:3000"
+  // In production we prefer a public URL, but a localhost-only deployment must
+  // still generate links to itself rather than to a hard-coded port 3000.
+  return preferredUrl ?? candidates[0] ?? "http://localhost:3000"
 }

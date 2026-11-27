@@ -13,7 +13,6 @@ import type { HydratedDocument } from "mongoose"
 import TestSubmission from "@/models/TestSubmission.model"
 import Submission from "@/models/Submission.model"
 import ExamSubmission from "@/models/ExamSubmission.model"
-import Certificate from "@/models/Certificate.model"
 import PaymentTransaction from "@/models/PaymentTransaction.model"
 import { Types } from "mongoose"
 
@@ -895,12 +894,31 @@ export async function submitExam(examId: string, answers: Record<string, string>
 
   let totalPoints = 0
   let earnedPoints = 0
+  // Same normalisation the module tests use, so "Pillar, cornerstone" and
+  // "pillar cornerstone" grade alike instead of failing on punctuation.
+  const normalise = (v: string) =>
+    v.trim().toLowerCase().replace(/[.,;:'"’“”]/g, "").replace(/\s+/g, " ").trim()
+
+  // Returns a fraction of the question's points earned (0..1).
+  // Essay questions carrying a `keywords` list are scored by key-term coverage,
+  // which gives partial credit for a substantively correct answer instead of
+  // requiring the student to reproduce the model answer word for word.
+  const scoreQuestion = (q: (typeof exam.questions)[number], studentAnswer: string): number => {
+    const answer = normalise(studentAnswer)
+    if (!answer) return 0
+    const keywords = (q as { keywords?: string[] }).keywords
+    if (q.type === "short_answer" && Array.isArray(keywords) && keywords.length > 0) {
+      const hits = keywords.filter((k) => answer.includes(normalise(k))).length
+      return hits / keywords.length
+    }
+    return normalise(q.correctAnswer) === answer ? 1 : 0
+  }
+
   const gradedAnswers = exam.questions.map((q) => {
     const qId = (q._id as Types.ObjectId)
     const studentAnswer = answers[qId.toString()] ?? ""
-    const correct = q.correctAnswer.trim().toLowerCase() === studentAnswer.trim().toLowerCase()
     totalPoints += q.points
-    if (correct) earnedPoints += q.points
+    earnedPoints += q.points * scoreQuestion(q, studentAnswer)
     return { questionId: qId, answer: studentAnswer }
   })
 

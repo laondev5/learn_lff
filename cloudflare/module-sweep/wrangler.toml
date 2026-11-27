@@ -1,0 +1,17 @@
+name = "lff-module-sweep"
+main = "src/index.ts"
+compatibility_date = "2026-11-20"
+
+# Keep the plain workers.dev endpoint available so the sweep can be triggered
+# manually with curl while debugging.
+workers_dev = true
+
+[triggers]
+# Every 15 minutes. Cloudflare fires scheduled events within a few seconds of the
+# boundary, unlike GitHub Actions which can queue for many minutes at peak times.
+# The endpoint is idempotent, so a late or repeated run is harmless.
+crons = ["*/15 * * * *"]
+
+# APP_URL and CRON_SECRET are stored as Worker secrets, not here:
+#   wrangler secret put APP_URL
+#   wrangler secret put CRON_SECRET

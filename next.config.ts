@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Allows verification builds to write to a fresh directory without wiping a
+  // running dev server's .next cache.
+  distDir: process.env.NEXT_BUILD_DIR || ".next",
   serverExternalPackages: ["mongoose", "mongodb", "nodemailer", "bcryptjs", "cloudinary"],
   images: {
     remotePatterns: [
@@ -16,6 +19,9 @@ const nextConfig: NextConfig = {
     // Turbopack and React's dev-mode call stacks need eval(); production never does.
     const scriptSrc = [
       "script-src 'self' 'unsafe-inline' blob:",
+      // MediaPipe Tasks Vision instantiates WebAssembly. Chrome requires this
+      // token under CSP even though the wasm is fetched from our own origin/CDN.
+      "'wasm-unsafe-eval'",
       !isProd ? "'unsafe-eval'" : "",
       "https://www.youtube.com https://cdn.jsdelivr.net https://unpkg.com",
     ]
@@ -40,11 +46,11 @@ const nextConfig: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      // Proctoring needs the microphone; nothing in the app uses camera, geolocation,
-      // payments or USB from within these pages.
+      // Proctoring needs both the camera (face/movement monitoring) and the
+      // microphone (talking detection). Geolocation, payment and USB stay off.
       {
         key: "Permissions-Policy",
-        value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
+        value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
       },
       {
         key: "Content-Security-Policy",
